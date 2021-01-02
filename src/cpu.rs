@@ -91,7 +91,29 @@ impl CPU {
         self.fetch_and_execute();
         self.mmu.step(self.t);
 
-        self.mmu.ppu.debug = true;
+        // self.mmu.ppu.debug = true;
+        // check for interrupts
+        if self.ime {
+            // V-Blank interrupt
+            let irq = (self.mmu.interrupt_flag & 0x01) == 0x01;
+            let ie = (self.mmu.interrupt_enable & 0x01) == 0x01;
+
+            if irq && ie {
+                // call isr(Interrupt Serivce Routine)
+                // disable further interrupts
+                self.ime = false;
+                // reset V-Blank interrupt reqeust flag
+                self.mmu.interrupt_flag &= 0xfe;
+
+                self.sp = self.sp.wrapping_sub(2);
+                self.write_byte16(self.sp, self.pc);
+                // V-Blank handler
+                self.pc = 0x0040;
+
+                self.t += 12;
+                self.m += 3;
+            }
+        }
 
         return self.t;
     }
@@ -313,8 +335,12 @@ impl CPU {
 
             // 20. LDH A,(n)
             0xf0 => {
-                let n = self.read_byte(self.pc + 1) as i8;
-                let address = 0xff00 + n as u16;
+                // opcode = read(PC++)
+                // if opcode == 0xF0:
+                // n = read(PC++)
+                // A = read(unsigned_16(lsb=n, msb=0xFF))
+                let n = self.read_byte(self.pc + 1);
+                let address: u16 = 0xff00 | n as u16;
                 let value = self.read_byte(address);
                 self.write_r8(&Register::A, value);
 
@@ -417,6 +443,50 @@ impl CPU {
             }
             0xfe => {
                 self.cp_d8();
+            }
+
+            // 5. AND n
+            0xa7 => self.and_r8(&Register::A),
+            0xa0 => self.and_r8(&Register::B),
+            0xa1 => self.and_r8(&Register::C),
+            0xa2 => self.and_r8(&Register::D),
+            0xa3 => self.and_r8(&Register::E),
+            0xa4 => self.and_r8(&Register::H),
+            0xa5 => self.and_r8(&Register::L),
+            0xa6 => {
+                let hl = self.get_hl();
+                self.and_m8(hl);
+            }
+            0xe6 => self.and_d8(),
+
+            // 7. XOR n
+            0xaf => {
+                self.xor_r8(&Register::A);
+            }
+            0xa8 => {
+                self.xor_r8(&Register::B);
+            }
+            0xa9 => {
+                self.xor_r8(&Register::C);
+            }
+            0xaa => {
+                self.xor_r8(&Register::D);
+            }
+            0xab => {
+                self.xor_r8(&Register::E);
+            }
+            0xac => {
+                self.xor_r8(&Register::H);
+            }
+            0xad => {
+                self.xor_r8(&Register::L);
+            }
+            0xae => {
+                let address = self.get_hl();
+                self.xor_m8(address);
+            }
+            0xee => {
+                self.xor_d8();
             }
 
             // 9. INC n
@@ -629,29 +699,6 @@ impl CPU {
                 self.m += 2;
             }
 
-            // XOR n
-            0xaf => {
-                // XOR A A
-                self.a ^= self.a;
-                if self.a == 0 {
-                    self.set_z_flag();
-                }
-                self.pc += 1;
-
-                self.t += 4;
-                self.m += 1;
-            }
-            0xa8 => {
-                // XOR B A
-            }
-            // 0xa9 => {}
-            // 0xaa => {}
-            // 0xab => {}
-            // 0xac => {}
-            // 0xad => {}
-            // 0xae => {}
-            // 0xee => {}
-
             // 3.3.6. Rotates & Shifts
             // 2. RLA
             0x17 => {
@@ -759,9 +806,24 @@ impl CPU {
                 self.m += 4;
             }
 
+            // 3. RETI
+            0xd9 => {
+                let low = self.read_byte(self.sp);
+                self.sp = self.sp.wrapping_add(1);
+
+                let high = self.read_byte(self.sp);
+                self.sp = self.sp.wrapping_add(1);
+
+                self.pc = (high as u16) << 8 | low as u16;
+                self.ime = true;
+
+                self.t += 16;
+                self.m += 4;
+            }
+
             // 7. HALT
             0x76 => {
-                self.pc = self.pc.wrapping_add(1);
+                // self.pc = self.pc.wrapping_add(1);
 
                 self.t += 4;
                 self.m += 1;
@@ -793,7 +855,7 @@ impl CPU {
             ),
         }
 
-        println!("CPU STATE after {:?}", self);
+        // println!("CPU STATE after {:?}", self);
     }
 
     fn read_byte(&mut self, address: u16) -> u8 {
@@ -929,6 +991,96 @@ impl CPU {
                 self.sp = value;
             }
         }
+    }
+
+    fn and_r8(&mut self, r: &Register) {
+        let value = self.read_r8(r);
+        self.a &= value;
+
+        self.set_z_flag_if(self.a == 0);
+        self.reset_n_flag();
+        self.set_h_flag();
+        self.reset_c_flag();
+
+        self.pc = self.pc.wrapping_add(1);
+
+        self.t += 4;
+        self.m += 1;
+    }
+
+    fn and_m8(&mut self, address: u16) {
+        let value = self.read_byte(address);
+        self.a &= value;
+
+        self.set_z_flag_if(self.a == 0);
+        self.reset_n_flag();
+        self.set_h_flag();
+        self.reset_c_flag();
+
+        self.pc = self.pc.wrapping_add(2);
+
+        self.t += 4;
+        self.m += 1;
+    }
+
+    fn and_d8(&mut self) {
+        let value = self.read_byte(self.pc + 1);
+        self.a &= value;
+
+        self.set_z_flag_if(self.a == 0);
+        self.reset_n_flag();
+        self.set_h_flag();
+        self.reset_c_flag();
+
+        self.pc = self.pc.wrapping_add(2);
+
+        self.t += 4;
+        self.m += 1;
+    }
+
+    fn xor_r8(&mut self, r: &Register) {
+        let value = self.read_r8(r);
+        self.a ^= value;
+
+        self.set_z_flag_if(self.a == 0);
+        self.reset_n_flag();
+        self.reset_h_flag();
+        self.reset_c_flag();
+
+        self.pc = self.pc.wrapping_add(1);
+
+        self.t += 4;
+        self.m += 1;
+    }
+
+    fn xor_m8(&mut self, address: u16) {
+        let value = self.read_byte(address);
+        self.a ^= value;
+
+        self.set_z_flag_if(self.a == 0);
+        self.reset_n_flag();
+        self.reset_h_flag();
+        self.reset_c_flag();
+
+        self.pc = self.pc.wrapping_add(2);
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn xor_d8(&mut self) {
+        let value = self.read_byte(self.pc + 1);
+        self.a ^= value;
+
+        self.set_z_flag_if(self.a == 0);
+        self.reset_n_flag();
+        self.reset_h_flag();
+        self.reset_c_flag();
+
+        self.pc = self.pc.wrapping_add(2);
+
+        self.t += 8;
+        self.m += 2;
     }
 
     fn add_r8(&mut self, r: &Register) {

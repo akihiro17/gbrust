@@ -17,6 +17,8 @@ pub struct PPU {
     // Y-Coordinate (R)
     ly: u8,
     scanline: [u8; WIDTH],
+    // VBlank
+    pub vblank: bool,
     pub debug: bool,
 }
 
@@ -48,13 +50,14 @@ impl PPU {
         return PPU {
             mode: 2,
             vram: vec![0; 0x2000],
-            buffer: vec![LIGHTEST_GREEN; WIDTH * HEIGHT],
+            buffer: vec![DARKEST_GREEN; WIDTH * HEIGHT],
             clocks: 0,
             lcdc: 0b1000_0000,
             scx: 0,
             scy: 0,
             ly: 0,
             scanline: [0; WIDTH],
+            vblank: false,
             debug: false,
         };
     }
@@ -74,8 +77,6 @@ impl PPU {
                 if self.clocks >= 80 {
                     self.mode = 3;
                     self.clocks = 0;
-
-                    self.redner_scanline();
                 }
             }
             // VRAM read mode
@@ -83,6 +84,8 @@ impl PPU {
                 if self.clocks >= 172 {
                     self.mode = 0;
                     self.clocks = 0;
+
+                    self.redner_scanline();
                 }
             }
             // Hblank
@@ -94,6 +97,7 @@ impl PPU {
                     if self.ly == 143 {
                         // Enter vblank
                         self.mode = 1;
+                        self.vblank = true;
                     } else {
                         self.mode = 2;
                     }
@@ -194,10 +198,10 @@ impl PPU {
 
     fn color_no_to_rgb(&self, no: u8) -> u32 {
         match no {
-            0 => LIGHTEST_GREEN,
+            0 => DARKEST_GREEN,
             1 => DARK_GREEN,
             2 => LIGHT_GREEN,
-            3 => DARKEST_GREEN,
+            3 => LIGHTEST_GREEN,
             _ => panic!("unrecognized color no #{:?}", no),
         }
     }

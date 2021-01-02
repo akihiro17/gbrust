@@ -8,6 +8,9 @@ pub struct MMU {
     rom: Vec<u8>,
     ram: [u8; 65536], // 0x0000 to 0xffff
     pub ppu: PPU,
+    boot_rom_enabled: bool,
+    pub interrupt_flag: u8,
+    pub interrupt_enable: u8,
 }
 
 impl MMU {
@@ -35,11 +38,20 @@ impl MMU {
             rom: rom,
             ram: [0; 65536],
             ppu: PPU::new(),
+            boot_rom_enabled: true,
+            interrupt_flag: 0,
+            interrupt_enable: 0,
         };
     }
 
     pub fn step(&mut self, clocks: usize) {
         self.ppu.step(clocks);
+
+        // V-Blank interrupt Request
+        if self.ppu.vblank {
+            self.interrupt_flag |= 0x01;
+            self.ppu.vblank = false;
+        }
     }
 
     pub fn write_byte(&mut self, address: u16, value: u8) {
@@ -57,8 +69,22 @@ impl MMU {
             0x8000..=0x9fff => {
                 self.ppu.write(address, value);
             }
-            0xff42 | 0xff44 => {
+            // I/O Registers
+            0xff42 | 0xff43 | 0xff44 => {
                 self.ppu.write(address, value);
+            }
+            // Interrupt Flag
+            0xff0f => {
+                self.interrupt_flag = value;
+            }
+            // Interrupt Enable
+            0xffff => {
+                self.interrupt_enable = value;
+            }
+
+            0xff50 => {
+                // Reset boot rom
+                self.boot_rom_enabled = false;
             }
             _ => {
                 self.ram[address as usize] = value;
@@ -69,7 +95,11 @@ impl MMU {
     pub fn read_byte(&mut self, address: u16) -> u8 {
         match address {
             0x0000..=0x00ff => {
-                return self.boot_rom[address as usize];
+                if self.boot_rom_enabled {
+                    return self.boot_rom[address as usize];
+                }
+
+                return self.rom[address as usize];
             }
             0x0100..=0x7fff => {
                 return self.rom[address as usize];
@@ -78,9 +108,18 @@ impl MMU {
             0x8000..=0x9fff => {
                 return self.ppu.read(address);
             }
-            0xff42 | 0xff43 | 0xff44 => {
+            0xff42 | 0xff43 | 0xff44 | 0xff50 => {
                 return self.ppu.read(address);
             }
+            // Interrupt Flag
+            0xff0f => {
+                return self.interrupt_flag;
+            }
+            // Interrupt Enable
+            0xffff => {
+                return self.interrupt_enable;
+            }
+
             _ => {
                 return self.ram[address as usize];
             }
