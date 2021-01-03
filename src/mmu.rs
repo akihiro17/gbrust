@@ -70,7 +70,7 @@ impl MMU {
                 self.ppu.write(address, value);
             }
             // I/O Registers
-            0xff42 | 0xff43 | 0xff44 => {
+            0xff42 | 0xff43 | 0xff44 | 0xff4a | 0xff4b => {
                 self.ppu.write(address, value);
             }
             // Interrupt Flag
@@ -108,7 +108,7 @@ impl MMU {
             0x8000..=0x9fff => {
                 return self.ppu.read(address);
             }
-            0xff42 | 0xff43 | 0xff44 | 0xff50 => {
+            0xff42 | 0xff43 | 0xff44 | 0xff4a | 0xff4b | 0xff50 => {
                 return self.ppu.read(address);
             }
             // Interrupt Flag

@@ -16,6 +16,10 @@ pub struct PPU {
     scy: u8,
     // Y-Coordinate (R)
     ly: u8,
+    // Window X Position minus 7
+    wx: u8,
+    // Window Y Position minus 7
+    wy: u8,
     scanline: [u8; WIDTH],
     // VBlank
     pub vblank: bool,
@@ -56,6 +60,8 @@ impl PPU {
             scx: 0,
             scy: 0,
             ly: 0,
+            wx: 0,
+            wy: 0,
             scanline: [0; WIDTH],
             vblank: false,
             debug: false,
@@ -128,15 +134,30 @@ impl PPU {
     fn render_background(&mut self) {
         // pixel to tile_index. (0 ~ 31)
         let mut tile_index_x = self.scx / 8;
-        let tile_index_y = (self.scy.wrapping_add(self.ly)) / 8;
+        let mut tile_index_y = (self.scy.wrapping_add(self.ly)) / 8;
 
-        // offset within tile (0 ~ 7)
+        // offsets within tile (0 ~ 7)
         let mut offset_x = self.scx % 8;
-        let offset_y = (self.scy.wrapping_add(self.ly)) % 8;
+        let mut offset_y = (self.scy.wrapping_add(self.ly)) % 8;
 
-        let mut tile = self.fetch_bg_tile(tile_index_x, tile_index_y, offset_y);
+        let mut tile = self.fetch_background_tile(tile_index_x, tile_index_y, offset_y);
+
+        let mut should_render_window = false;
 
         for x in 0..WIDTH {
+            // LCDC: Bit 5 - Window Display Enable          (0=Off, 1=On)
+            if self.lcdc & 0b0010_0000 > 0 {
+                // top left corner of a window are wx-7,wy.
+                if self.wy <= self.ly && self.wx == (x + 7) as u8 {
+                    tile_index_x = 0;
+                    tile_index_y = (self.ly - self.wy) / 8;
+                    offset_x = 0;
+                    offset_y = (self.ly - self.wy) % 8;
+                    tile = self.fetch_window_tile(tile_index_x, tile_index_y, offset_y);
+                    should_render_window = true;
+                }
+            }
+
             let tile0 = tile.0;
             let tile1 = tile.1;
 
@@ -159,12 +180,16 @@ impl PPU {
                 offset_x = 0;
                 tile_index_x += 1;
 
-                tile = self.fetch_bg_tile(tile_index_x, tile_index_y, offset_y);
+                if should_render_window {
+                    tile = self.fetch_window_tile(tile_index_x, tile_index_y, offset_y);
+                } else {
+                    tile = self.fetch_background_tile(tile_index_x, tile_index_y, offset_y);
+                }
             }
         }
     }
 
-    fn fetch_bg_tile(&self, tile_index_x: u8, tile_index_y: u8, offset_y: u8) -> (u8, u8) {
+    fn fetch_background_tile(&self, tile_index_x: u8, tile_index_y: u8, offset_y: u8) -> (u8, u8) {
         // calculate tile map address
         let tile_map_base: u16 = 0x1800;
 
@@ -177,6 +202,30 @@ impl PPU {
         // calculate tile set address
         let tile_set_address = (tile_number as u16) * 16;
 
+        // 1 tile 2 bytes
+        let row_address = tile_set_address + (offset_y << 1) as u16;
+
+        let tile0 = self.vram[row_address as usize];
+        let tile1 = self.vram[(row_address + 1) as usize];
+
+        return (tile0, tile1);
+    }
+
+    fn fetch_window_tile(&self, tile_index_x: u8, tile_index_y: u8, offset_y: u8) -> (u8, u8) {
+        // calculate tile map address
+        //  LCDC: Bit 6 - Window Tile Map Display Select (0=9800-9BFF, 1=9C00-9FFF)
+        let tile_map_base: u16 = 0x1800;
+
+        let tile_map_address =
+            tile_map_base | ((tile_index_x as u16) % 32 + (tile_index_y as u16) * 32);
+
+        // get tile no (0 ~ 255)
+        let tile_number = self.vram[tile_map_address as usize];
+
+        // calculate tile set address
+        let tile_set_address = (tile_number as u16) * 16;
+
+        // 1 tile 2 bytes
         let row_address = tile_set_address + (offset_y << 1) as u16;
 
         let tile0 = self.vram[row_address as usize];
@@ -213,18 +262,12 @@ impl PPU {
                 // 0x0900 & 0x1fff -> 0x1000 means tile set 0
                 return self.vram[(address & 0x1fff) as usize];
             }
-            0xff40 => {
-                return self.lcdc;
-            }
-            0xff42 => {
-                return self.scy;
-            }
-            0xff43 => {
-                return self.scx;
-            }
-            0xff44 => {
-                return self.ly;
-            }
+            0xff40 => return self.lcdc,
+            0xff42 => return self.scy,
+            0xff43 => return self.scx,
+            0xff44 => return self.ly,
+            0xff4a => return self.wy,
+            0xff4b => return self.wx,
 
             _ => panic!("unexpected address #{:x}", address),
         }
@@ -235,18 +278,12 @@ impl PPU {
             0x8000..=0x9fff => {
                 self.vram[(address & 0x1fff) as usize] = value;
             }
-            0xff40 => {
-                self.lcdc = value;
-            }
-            0xff42 => {
-                self.scy = value;
-            }
-            0xff43 => {
-                self.scx = value;
-            }
-            0xff44 => {
-                self.ly = value;
-            }
+            0xff40 => self.lcdc = value,
+            0xff42 => self.scy = value,
+            0xff43 => self.scx = value,
+            0xff44 => self.ly = value,
+            0xff4a => self.wy = value,
+            0xff4b => self.wx = value,
             _ => panic!("unexpected address #{:x}", address),
         }
     }

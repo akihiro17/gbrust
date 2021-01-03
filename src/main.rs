@@ -24,7 +24,8 @@ fn main() {
     // Limit to max ~60 fps update rate
     // window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
-    let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/bg_scroll_x_y.gb");
+    let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/window.gb");
+    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/bg_scroll_x_y.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/hello-2.gb");
 
     loop {

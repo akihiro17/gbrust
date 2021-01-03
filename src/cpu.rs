@@ -747,26 +747,81 @@ impl CPU {
                     }
 
                     // BIT
-                    0x7c => {
-                        // BIT 7, H
-                        let bit_test = self.h & 0b1000_0000;
-                        if bit_test == 0b1000_0000 {
-                            self.reset_z_flag();
-                        } else {
-                            // set Z flag
-                            self.set_z_flag();
-                        }
-
-                        // reset N flag
-                        self.reset_n_flag();
-                        // set H flag
-                        self.set_h_flag();
-
-                        self.t += 8;
-                        self.m += 2;
+                    0x50 => self.bit_r8(2, &Register::B),
+                    0x51 => self.bit_r8(2, &Register::C),
+                    0x52 => self.bit_r8(2, &Register::D),
+                    0x53 => self.bit_r8(2, &Register::E),
+                    0x54 => self.bit_r8(2, &Register::H),
+                    0x55 => self.bit_r8(2, &Register::L),
+                    0x56 => {
+                        let hl = self.get_hl();
+                        self.bit_m8(2, hl);
                     }
+                    0x57 => self.bit_r8(2, &Register::A),
+
+                    0x60 => self.bit_r8(4, &Register::B),
+                    0x61 => self.bit_r8(4, &Register::C),
+                    0x62 => self.bit_r8(4, &Register::D),
+                    0x63 => self.bit_r8(4, &Register::E),
+                    0x64 => self.bit_r8(4, &Register::H),
+                    0x65 => self.bit_r8(4, &Register::L),
+                    0x66 => {
+                        let hl = self.get_hl();
+                        self.bit_m8(4, hl);
+                    }
+                    0x67 => self.bit_r8(4, &Register::A),
+
+                    0x68 => self.bit_r8(5, &Register::B),
+                    0x69 => self.bit_r8(5, &Register::C),
+                    0x6a => self.bit_r8(5, &Register::D),
+                    0x6b => self.bit_r8(5, &Register::E),
+                    0x6c => self.bit_r8(5, &Register::H),
+                    0x6d => self.bit_r8(5, &Register::L),
+                    0x6e => {
+                        let hl = self.get_hl();
+                        self.bit_m8(5, hl);
+                    }
+                    0x6f => self.bit_r8(5, &Register::A),
+
+                    0x70 => self.bit_r8(6, &Register::B),
+                    0x71 => self.bit_r8(6, &Register::C),
+                    0x72 => self.bit_r8(6, &Register::D),
+                    0x73 => self.bit_r8(6, &Register::E),
+                    0x74 => self.bit_r8(6, &Register::H),
+                    0x75 => self.bit_r8(6, &Register::L),
+                    0x76 => {
+                        let hl = self.get_hl();
+                        self.bit_m8(6, hl);
+                    }
+                    0x77 => self.bit_r8(6, &Register::A),
+
+                    0x78 => self.bit_r8(7, &Register::B),
+                    0x79 => self.bit_r8(7, &Register::C),
+                    0x7a => self.bit_r8(7, &Register::D),
+                    0x7b => self.bit_r8(7, &Register::E),
+                    0x7c => self.bit_r8(7, &Register::H),
+                    0x7d => self.bit_r8(7, &Register::L),
+                    0x7e => {
+                        let hl = self.get_hl();
+                        self.bit_m8(7, hl);
+                    }
+                    0x7f => self.bit_r8(7, &Register::A),
+
+                    // 3. RES b,r
+                    0x87 => self.res_r8(&Register::A),
+                    0x80 => self.res_r8(&Register::B),
+                    0x81 => self.res_r8(&Register::C),
+                    0x82 => self.res_r8(&Register::D),
+                    0x83 => self.res_r8(&Register::E),
+                    0x84 => self.res_r8(&Register::H),
+                    0x85 => self.res_r8(&Register::L),
+                    0x86 => {
+                        let hl = self.get_hl();
+                        self.res_m8(hl);
+                    }
+
                     _ => {
-                        panic!("unrecognized prefix {:#}", prefix);
+                        panic!("unrecognized prefix {:x}", prefix);
                     }
                 }
 
@@ -1223,22 +1278,70 @@ impl CPU {
         self.m += 2;
     }
 
-    fn rl(&mut self, register: &Register) {
+    fn res_r8(&mut self, r: &Register) {
+        let value = self.read_r8(r);
+        let b = self.read_byte(self.pc + 1);
+        self.write_r8(r, value & !(1 << b));
+
+        self.pc = self.pc.wrapping_add(2);
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn res_m8(&mut self, address: u16) {
+        let value = self.read_byte(address);
+        let b = self.read_byte(self.pc + 1);
+        self.write_byte(address, value & !(1 << b));
+
+        self.pc = self.pc.wrapping_add(2);
+
+        self.t += 16;
+        self.m += 4;
+    }
+
+    fn rl(&mut self, r: &Register) {
         // rorate left through Carry flag
         // ref. https://ja.wikipedia.org/wiki/%E3%83%93%E3%83%83%E3%83%88%E6%BC%94%E7%AE%97#/media/%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB:Rotate_left_through_carry.svg
-        let previous = self.read_r8(register);
-        let mut value = self.read_r8(register) << 1;
+        let previous = self.read_r8(r);
+        let mut value = self.read_r8(r) << 1;
         if self.get_c_flag() {
             value = value | 0x01;
         } else {
             value = value | 0x00;
         }
-        self.write_r8(register, value);
+        self.write_r8(r, value);
 
         self.set_z_flag_if(value == 0);
         self.reset_n_flag();
         self.reset_h_flag();
         self.set_c_flag_if((previous & 0b1000_0000) == 0b1000_0000);
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn bit_r8(&mut self, n: u8, r: &Register) {
+        let value = self.read_r8(r);
+        let mask = 0x0001 << n;
+        let bit_test = value & mask;
+
+        self.set_z_flag_if(bit_test == 0);
+        self.reset_n_flag();
+        self.set_h_flag();
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn bit_m8(&mut self, n: u8, address: u16) {
+        let value = self.read_byte(address);
+        let mask = 0x0001 << n;
+        let bit_test = value & mask;
+
+        self.set_z_flag_if(bit_test == 0);
+        self.reset_n_flag();
+        self.set_h_flag();
 
         self.t += 8;
         self.m += 2;
