@@ -69,10 +69,27 @@ impl MMU {
             0x8000..=0x9fff => {
                 self.ppu.write(address, value);
             }
-            // I/O Registers
-            0xff42 | 0xff43 | 0xff44 | 0xff4a | 0xff4b => {
+            // OAM
+            0xfe00..=0xfe9f => {
                 self.ppu.write(address, value);
             }
+
+            // I/O Registers
+            0xff40 | 0xff42 | 0xff43 | 0xff44 | 0xff47 | 0xff4a | 0xff4b => {
+                self.ppu.write(address, value);
+            }
+
+            // DMA
+            0xff46 => {
+                let xx = (value as u16 & 0x00ff) << 8;
+                for i in 0..0xa0 {
+                    // source
+                    let v = self.read_byte(xx | i);
+                    // dest: oam
+                    self.write_byte(0xfe00 | i, v);
+                }
+            }
+
             // Interrupt Flag
             0xff0f => {
                 self.interrupt_flag = value;
@@ -87,12 +104,15 @@ impl MMU {
                 self.boot_rom_enabled = false;
             }
             _ => {
+                if address == 0xff46 {
+                    panic!("should implement dma");
+                }
                 self.ram[address as usize] = value;
             }
         }
     }
 
-    pub fn read_byte(&mut self, address: u16) -> u8 {
+    pub fn read_byte(&self, address: u16) -> u8 {
         match address {
             0x0000..=0x00ff => {
                 if self.boot_rom_enabled {
@@ -108,9 +128,16 @@ impl MMU {
             0x8000..=0x9fff => {
                 return self.ppu.read(address);
             }
-            0xff42 | 0xff43 | 0xff44 | 0xff4a | 0xff4b | 0xff50 => {
+
+            // OAM
+            0xfe00..=0xfe9f => {
                 return self.ppu.read(address);
             }
+
+            0xff40 | 0xff42 | 0xff43 | 0xff44 | 0xff47 | 0xff4a | 0xff4b | 0xff50 => {
+                return self.ppu.read(address);
+            }
+
             // Interrupt Flag
             0xff0f => {
                 return self.interrupt_flag;
