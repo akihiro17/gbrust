@@ -9,8 +9,6 @@ extern crate minifb;
 use minifb::{Window, WindowOptions};
 
 fn main() {
-    println!("Hello, world!");
-
     let mut window = Window::new(
         "Test - ESC to exit",
         ppu::WIDTH,
@@ -24,7 +22,11 @@ fn main() {
     // Limit to max ~60 fps update rate
     // window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
-    let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/ld.gb");
+    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/03.gb");
+    let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/07.gb");
+    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/05.gb");
+    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/04.gb");
+    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/ld.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/sprite.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/window.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/bg_scroll_x_y.gb");

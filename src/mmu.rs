@@ -21,7 +21,7 @@ impl MMU {
         file.read_to_end(&mut rom).unwrap();
 
         for &byte in rom.iter() {
-            println!("{:#x}", (byte as u16));
+            // println!("{:#x}", (byte as u16));
         }
 
         let mut boot_rom_file = File::open(boot_rom_name).unwrap();
@@ -30,7 +30,7 @@ impl MMU {
         boot_rom_file.read_to_end(&mut boot_rom).unwrap();
 
         for &byte in rom.iter() {
-            println!("{:#x}", (byte as u16));
+            // println!("{:#x}", (byte as u16));
         }
 
         return MMU {
@@ -72,6 +72,11 @@ impl MMU {
             // OAM
             0xfe00..=0xfe9f => {
                 self.ppu.write(address, value);
+            }
+
+            // for console
+            0xff01 => {
+                // println!("console: {}", value as char);
             }
 
             // I/O Registers

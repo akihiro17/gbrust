@@ -119,9 +119,34 @@ impl CPU {
     }
 
     pub fn fetch_and_execute(&mut self) {
-        println!("byte on {:#X}: {:#X}", self.pc, self.mmu.read_byte(self.pc));
-
         let instruction = self.mmu.read_byte(self.pc);
+
+        if self.pc >= 0xff {
+            // if self.pc == 0x0100 {
+            //     self.a = 0;
+            //     self.f = 0;
+            //     self.b = 0;
+            //     self.c = 0;
+            //     self.d = 0;
+            //     self.e = 0;
+            //     self.h = 0;
+            //     self.l = 0;
+            //     self.mmu.ppu.ly = 0;
+            // }
+            // println!(
+            //     "byte on {:#X}: {:#X} inst: {:#X}",
+            //     self.pc,
+            //     self.mmu.read_byte(self.pc),
+            //     instruction
+            // );
+            // println!("CPU STATE {:?}", self);
+            // self.mmu.ppu.debug = true;
+            println!(
+                "inst: {:#X} pc: {:#X} A: {:#X} F: {:#X} B: {:#X} C: {:#X} D: {:#X} E: {:#X} H: {:#X} L: {:#X}",
+                instruction, self.pc, self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l,
+            );
+        }
+
         match instruction {
             0x0 => {
                 self.pc = self.pc.wrapping_add(1);
@@ -181,48 +206,17 @@ impl CPU {
             }
 
             // 4. LD n,A
-            0x7f => {
-                // LD A, A
-                self.ld_from_r8_to_r8(&Register::A, &Register::A);
-            }
-            0x47 => {
-                // LD B, A
-                self.ld_from_r8_to_r8(&Register::B, &Register::A);
-            }
-            0x4f => {
-                // LD C, A
-                self.ld_from_r8_to_r8(&Register::C, &Register::A);
-            }
-            0x57 => {
-                // LD D, A
-                self.ld_from_r8_to_r8(&Register::D, &Register::A);
-            }
-            0x5f => {
-                // LD E, A
-                self.ld_from_r8_to_r8(&Register::E, &Register::A);
-            }
-            0x67 => {
-                // LD H, A
-                self.ld_from_r8_to_r8(&Register::H, &Register::A);
-            }
-            0x6f => {
-                // LD L, A
-                self.ld_from_r8_to_r8(&Register::L, &Register::A);
-            }
-            0x02 => {
-                // LD (BC), A
-                let bc = self.get_bc();
-                self.ld_from_r8_to_m8(bc, &Register::A);
-            }
-            0x12 => {
-                // LD (DE), A
-                let de = self.get_de();
-                self.ld_from_r8_to_m8(de, &Register::A);
-            }
-            0x77 => {
-                let hl = self.get_hl();
-                self.ld_from_r8_to_m8(hl, &Register::A);
-            }
+            // LD A, A
+            0x7f => self.ld_from_r8_to_r8(&Register::A, &Register::A),
+            0x47 => self.ld_from_r8_to_r8(&Register::B, &Register::A),
+            0x4f => self.ld_from_r8_to_r8(&Register::C, &Register::A),
+            0x57 => self.ld_from_r8_to_r8(&Register::D, &Register::A),
+            0x5f => self.ld_from_r8_to_r8(&Register::E, &Register::A),
+            0x67 => self.ld_from_r8_to_r8(&Register::H, &Register::A),
+            0x6f => self.ld_from_r8_to_r8(&Register::L, &Register::A),
+            0x02 => self.ld_from_r8_to_m8(self.get_bc(), &Register::A),
+            0x12 => self.ld_from_r8_to_m8(self.get_de(), &Register::A),
+            0x77 => self.ld_from_r8_to_m8(self.get_hl(), &Register::A),
             0xea => {
                 // LD (nn), A
                 let address = self.read_byte16(self.pc + 1);
@@ -230,32 +224,15 @@ impl CPU {
             }
 
             // 2. LD r1,r2
-            0x78 => {
-                self.ld_from_r8_to_r8(&Register::A, &Register::B);
-            }
-            0x79 => {
-                self.ld_from_r8_to_r8(&Register::A, &Register::C);
-            }
-            0x7a => {
-                self.ld_from_r8_to_r8(&Register::A, &Register::D);
-            }
-            0x7b => {
-                self.ld_from_r8_to_r8(&Register::A, &Register::E);
-            }
-            0x7c => {
-                self.ld_from_r8_to_r8(&Register::A, &Register::H);
-            }
-            0x7d => {
-                self.ld_from_r8_to_r8(&Register::A, &Register::L);
-            }
-            0x7e => {
-                let address = self.get_hl();
-                self.ld_from_memory_to_r8(&Register::A, address);
-            }
+            0x78 => self.ld_from_r8_to_r8(&Register::A, &Register::B),
+            0x79 => self.ld_from_r8_to_r8(&Register::A, &Register::C),
+            0x7a => self.ld_from_r8_to_r8(&Register::A, &Register::D),
+            0x7b => self.ld_from_r8_to_r8(&Register::A, &Register::E),
+            0x7c => self.ld_from_r8_to_r8(&Register::A, &Register::H),
+            0x7d => self.ld_from_r8_to_r8(&Register::A, &Register::L),
+            0x7e => self.ld_from_memory_to_r8(&Register::A, self.get_hl()),
             0x0a => self.ld_from_memory_to_r8(&Register::A, self.get_bc()),
-            0xfa => {
-                self.ld_from_d16_to_r8(&Register::A);
-            }
+            0xfa => self.ld_from_d16_to_r8(&Register::A),
 
             0x40 => self.ld_from_r8_to_r8(&Register::B, &Register::B),
             0x41 => self.ld_from_r8_to_r8(&Register::B, &Register::C),
@@ -311,6 +288,7 @@ impl CPU {
             0x73 => self.ld_from_r8_to_m8(self.get_hl(), &Register::E),
             0x74 => self.ld_from_r8_to_m8(self.get_hl(), &Register::H),
             0x75 => self.ld_from_r8_to_m8(self.get_hl(), &Register::L),
+            0x36 => self.ld_from_d16_to_m8(self.get_hl()),
 
             // 3. LD A,n
             0x1a => self.ld_from_memory_to_r8(&Register::A, self.get_de()),
@@ -340,7 +318,7 @@ impl CPU {
                 let value = self.read_byte(hl);
                 self.a = value;
 
-                println!("LDI A,(HL): A: {:x} hl: {:x}", self.a, hl);
+                // println!("LDI A,(HL): A: {:x} hl: {:x}", self.a, hl);
 
                 self.set_hl(hl.wrapping_add(1));
                 self.pc = self.pc.wrapping_add(1);
@@ -445,6 +423,17 @@ impl CPU {
             0x96 => self.sub_m8(self.get_hl()),
             0xd6 => self.sub_d8(),
 
+            // 4. SBC A,n
+            0x9f => self.sbc_r8(&Register::A),
+            0x98 => self.sbc_r8(&Register::B),
+            0x99 => self.sbc_r8(&Register::C),
+            0x9a => self.sbc_r8(&Register::D),
+            0x9b => self.sbc_r8(&Register::E),
+            0x9c => self.sbc_r8(&Register::H),
+            0x9d => self.sbc_r8(&Register::L),
+            0x9e => self.sbc_m8(self.get_hl()),
+            0xde => self.sbc_d8(),
+
             // 8. CP n
             0xbf => {
                 self.cp_r8(&Register::A);
@@ -474,7 +463,7 @@ impl CPU {
 
                 self.set_z_flag_if(a == value);
                 self.set_n_flag();
-                self.set_h_flag_if(a & 0x0f < value & 0x0);
+                self.set_h_flag_if(a & 0x0f < value & 0x0f);
                 self.set_c_flag_if(a < value);
 
                 self.pc = self.pc.wrapping_add(1);
@@ -615,6 +604,9 @@ impl CPU {
             0x29 => self.add_r16(&Register16::HL, &Register16::HL),
             0x39 => self.add_r16(&Register16::HL, &Register16::SP),
 
+            // 2. ADD SP,n
+            0xe8 => self.add_r16_d8(&Register16::SP),
+
             // 3. INC nn
             0x03 => {
                 self.inc_r16(&Register16::BC);
@@ -628,6 +620,12 @@ impl CPU {
             0x33 => {
                 self.inc_r16(&Register16::SP);
             }
+
+            // 4. DEC nn
+            0x0b => self.dec_r16(&Register16::BC),
+            0x1b => self.dec_r16(&Register16::DE),
+            0x2b => self.dec_r16(&Register16::HL),
+            0x3b => self.dec_r16(&Register16::SP),
 
             // 19. LDH (n),A
             0xe0 => {
@@ -680,7 +678,47 @@ impl CPU {
                 self.m += 3;
             }
 
+            // 2. LD SP,HL
+            0xf9 => {
+                self.sp = self.get_hl();
+
+                self.pc = self.pc.wrapping_add(1);
+
+                self.t += 8;
+                self.m += 2;
+            }
+
+            // 4. LDHL SP,n
+            0xf8 => {
+                let sp = self.sp;
+                let n = self.read_byte(self.pc + 1) as i8;
+                let address = self.sp.wrapping_add(n as u16);
+                self.set_hl(address);
+
+                self.reset_z_flag();
+                self.reset_n_flag();
+                // set if carry from bit-3
+                self.set_h_flag_if((sp & 0x0f) + (n as u16 & 0x0f) > 0x0f);
+                // set if carry from bit-7
+                self.set_c_flag_if((sp & 0xff) + (n as u16 & 0xff) > 0xff);
+
+                self.pc = self.pc.wrapping_add(2);
+
+                self.t += 12;
+                self.m += 3;
+            }
+
             // 5. LD (nn),SP
+            0x08 => {
+                // 2020-01-17
+                let address = self.read_byte16(self.pc + 1);
+                self.write_byte16(address, self.sp);
+
+                self.pc = self.pc.wrapping_add(3);
+
+                self.t += 20;
+                self.m += 5;
+            }
 
             // 6. PUSH nn
             0xf5 => {
@@ -716,16 +754,16 @@ impl CPU {
 
             // 3.3.8. Jumps
             // 1. JP nn
-            0xc3 => {
-                let address = self.read_d16();
-                self.pc = address;
+            0xc3 => self.jp(true),
+            //2. JP cc,nn
+            0xc2 => self.jp(!self.get_z_flag()),
+            0xca => self.jp(self.get_z_flag()),
+            0xd2 => self.jp(!self.get_c_flag()),
+            0xda => self.jp(self.get_c_flag()),
 
-                self.t += 12;
-                self.m += 3;
-            }
             // 3. JP (HL)
             0xe9 => {
-                self.pc = self.read_byte16(self.get_hl());
+                self.pc = self.get_hl();
 
                 self.t += 4;
                 self.m += 1;
@@ -797,7 +835,9 @@ impl CPU {
 
                 self.pc = self.pc.wrapping_add(1);
 
-                self.set_z_flag_if(value == 0);
+                // document is wrong
+                // self.set_z_flag_if(value == 0);
+                self.reset_z_flag();
                 self.reset_n_flag();
                 self.reset_h_flag();
                 self.set_c_flag_if((previous & 0x01) > 0);
@@ -838,6 +878,21 @@ impl CPU {
                     0x1b => self.rr_r8(&Register::E),
                     0x1c => self.rr_r8(&Register::H),
                     0x1d => self.rr_r8(&Register::L),
+
+                    // 1. SWAP n
+                    0x37 => {
+                        let previous = self.a;
+                        let value = (previous & 0x0f) << 4 | (previous & 0xf0) >> 4;
+
+                        self.a = value;
+                        self.set_z_flag_if(value == 0);
+                        self.reset_n_flag();
+                        self.reset_h_flag();
+                        self.reset_c_flag();
+
+                        self.t += 8;
+                        self.m += 2;
+                    }
 
                     // 11. SRL n
                     0x3f => self.srl_r8(&Register::A),
@@ -948,21 +1003,29 @@ impl CPU {
             0xc0 => {
                 if !self.get_z_flag() {
                     self.ret();
+                } else {
+                    self.pc = self.pc.wrapping_add(1);
                 }
             }
             0xc8 => {
                 if self.get_z_flag() {
                     self.ret();
+                } else {
+                    self.pc = self.pc.wrapping_add(1);
                 }
             }
             0xd0 => {
                 if !self.get_c_flag() {
                     self.ret();
+                } else {
+                    self.pc = self.pc.wrapping_add(1);
                 }
             }
             0xd8 => {
                 if self.get_c_flag() {
                     self.ret();
+                } else {
+                    self.pc = self.pc.wrapping_add(1);
                 }
             }
 
@@ -1005,8 +1068,6 @@ impl CPU {
                 instruction, self.pc
             ),
         }
-
-        // println!("CPU STATE after {:?}", self);
     }
 
     fn read_byte(&mut self, address: u16) -> u8 {
@@ -1168,7 +1229,7 @@ impl CPU {
         self.set_h_flag();
         self.reset_c_flag();
 
-        self.pc = self.pc.wrapping_add(2);
+        self.pc = self.pc.wrapping_add(1);
 
         self.t += 4;
         self.m += 1;
@@ -1195,7 +1256,7 @@ impl CPU {
 
         self.set_z_flag_if(self.a == 0);
         self.reset_n_flag();
-        self.set_h_flag();
+        self.reset_h_flag();
         self.reset_c_flag();
 
         self.pc = self.pc.wrapping_add(1);
@@ -1210,10 +1271,10 @@ impl CPU {
 
         self.set_z_flag_if(self.a == 0);
         self.reset_n_flag();
-        self.set_h_flag();
+        self.reset_h_flag();
         self.reset_c_flag();
 
-        self.pc = self.pc.wrapping_add(2);
+        self.pc = self.pc.wrapping_add(1);
 
         self.t += 4;
         self.m += 1;
@@ -1225,7 +1286,7 @@ impl CPU {
 
         self.set_z_flag_if(self.a == 0);
         self.reset_n_flag();
-        self.set_h_flag();
+        self.reset_h_flag();
         self.reset_c_flag();
 
         self.pc = self.pc.wrapping_add(2);
@@ -1283,12 +1344,12 @@ impl CPU {
         let previous = self.a;
         let n = self.read_r8(r);
 
-        let value = previous.wrapping_add(n);
+        let (value, carry) = previous.overflowing_add(n);
         self.a = value;
         self.set_z_flag_if(value == 0);
         self.reset_n_flag();
-        self.set_h_flag_if((previous & 0x0f) == 0x0f);
-        self.set_c_flag_if(previous == 0xff);
+        self.set_h_flag_if((previous & 0x0f) + (n & 0x0f) > 0x0f);
+        self.set_c_flag_if(carry);
 
         self.pc = self.pc.wrapping_add(1);
 
@@ -1300,12 +1361,12 @@ impl CPU {
         let previous = self.a;
         let n = self.read_byte(address);
 
-        let value = previous.wrapping_add(n);
+        let (value, carry) = previous.overflowing_add(n);
         self.a = value;
         self.set_z_flag_if(value == 0);
         self.reset_n_flag();
-        self.set_h_flag_if((previous & 0x0f) == 0x0f);
-        self.set_c_flag_if(previous == 0xff);
+        self.set_h_flag_if((previous & 0x0f) + (n & 0x0f) > 0x0f);
+        self.set_c_flag_if(carry);
 
         self.pc = self.pc.wrapping_add(1);
 
@@ -1317,12 +1378,12 @@ impl CPU {
         let previous = self.a;
         let n = self.read_byte(self.pc + 1);
 
-        let value = previous.wrapping_add(n);
+        let (value, carry) = previous.overflowing_add(n);
         self.a = value;
         self.set_z_flag_if(value == 0);
         self.reset_n_flag();
-        self.set_h_flag_if((previous & 0x0f) == 0x0f);
-        self.set_c_flag_if(previous == 0xff);
+        self.set_h_flag_if((previous & 0x0f) + (n & 0x0f) > 0x0f);
+        self.set_c_flag_if(carry);
 
         self.pc = self.pc.wrapping_add(2);
 
@@ -1447,13 +1508,69 @@ impl CPU {
         self.m += 2;
     }
 
+    fn sbc_r8(&mut self, r: &Register) {
+        let a = self.a;
+        let n = self.read_r8(r);
+        let c = if self.get_c_flag() { 1 } else { 0 };
+
+        let value = a.wrapping_sub(n).wrapping_sub(c);
+        self.a = value;
+        self.set_z_flag_if(value == 0);
+        self.set_n_flag();
+        // wrong -> self.set_h_flag_if(previous & 0x0f < (n & 0x0f + c));
+        self.set_h_flag_if(a & 0x0f < (n & 0x0f) + c);
+        // n + c > u8Max
+        self.set_c_flag_if((a as u16) < (n as u16) + (c as u16));
+
+        self.pc = self.pc.wrapping_add(1);
+
+        self.t += 4;
+        self.m += 1;
+    }
+
+    fn sbc_m8(&mut self, address: u16) {
+        let previous = self.a;
+        let n = self.read_byte(address);
+        let c = if self.get_c_flag() { 1 } else { 0 };
+
+        let value = previous.wrapping_sub(n).wrapping_sub(c);
+        self.a = value;
+        self.set_z_flag_if(value == 0);
+        self.set_n_flag();
+        self.set_h_flag_if(previous & 0x0f < (n & 0x0f) + c);
+        self.set_c_flag_if((previous as u16) < (n as u16) + (c as u16));
+
+        self.pc = self.pc.wrapping_add(1);
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn sbc_d8(&mut self) {
+        let previous = self.a;
+        let n = self.read_byte(self.pc + 1);
+        let c = if self.get_c_flag() { 1 } else { 0 };
+
+        let value = previous.wrapping_sub(n).wrapping_sub(c);
+        self.a = value;
+        self.set_z_flag_if(value == 0);
+        self.set_n_flag();
+        self.set_h_flag_if(previous & 0x0f < (n & 0x0f) + c);
+        self.set_c_flag_if((previous as u16) < (n as u16) + (c as u16));
+
+        self.pc = self.pc.wrapping_add(2);
+
+        self.t += 8;
+        self.m += 2;
+    }
+
     fn cp_r8(&mut self, r: &Register) {
         let a = self.a;
         let value = self.read_r8(r);
 
         self.set_z_flag_if(a == value);
         self.set_n_flag();
-        self.set_h_flag_if(a & 0x0f < value & 0x0);
+        self.set_h_flag_if(a & 0x0f < value & 0x0f);
         self.set_c_flag_if(a < value);
 
         self.pc = self.pc.wrapping_add(1);
@@ -1468,7 +1585,7 @@ impl CPU {
 
         self.set_z_flag_if(a == value);
         self.set_n_flag();
-        self.set_h_flag_if(a & 0x0f < value & 0x0);
+        self.set_h_flag_if(a & 0x0f < value & 0x0f);
         self.set_c_flag_if(a < value);
 
         self.pc = self.pc.wrapping_add(2);
@@ -1491,7 +1608,7 @@ impl CPU {
         let value = self.read_r8(r);
         self.write_byte(address, value);
 
-        println!("lD address({:x}) = {}", address, value);
+        // println!("lD address({:x}) = {}", address, value);
 
         self.pc = self.pc.wrapping_add(1);
 
@@ -1499,8 +1616,20 @@ impl CPU {
         self.m += 2;
     }
 
-    fn ld_from_r8_to_d16(&mut self, address: u16, r2: &Register) {
-        let value = self.read_r8(r2);
+    fn ld_from_d16_to_m8(&mut self, address: u16) {
+        let value = self.read_byte16(self.pc + 1);
+        self.write_byte16(address, value);
+
+        // println!("lD address({:x}) = {}", address, value);
+
+        self.pc = self.pc.wrapping_add(2);
+
+        self.t += 12;
+        self.m += 3;
+    }
+
+    fn ld_from_r8_to_d16(&mut self, address: u16, r: &Register) {
+        let value = self.read_r8(r);
         self.write_byte(address, value);
 
         self.pc = self.pc.wrapping_add(3);
@@ -1576,7 +1705,7 @@ impl CPU {
         let previous = self.read_r8(r);
         let mut value = self.read_r8(r) >> 1;
         if self.get_c_flag() {
-            value = value | 0x01;
+            value = value | 0x80;
         } else {
             value = value | 0x00;
         }
@@ -1645,12 +1774,8 @@ impl CPU {
             self.reset_z_flag();
         }
         self.reset_n_flag();
-        // Set if carry from bit 4.
-        if previous == 0x10 {
-            self.set_h_flag();
-        } else {
-            self.reset_h_flag();
-        }
+        // Set if carry from bit 3
+        self.set_h_flag_if(previous & 0x0f == 0x0f);
 
         self.pc = self.pc.wrapping_add(1);
     }
@@ -1663,8 +1788,8 @@ impl CPU {
         //update the flags
         self.set_z_flag_if(new_value == 0);
         self.reset_n_flag();
-        // Set if carry from bit 4.
-        self.set_h_flag_if(previous == 0x10);
+        // Set if carry from bit 3
+        self.set_h_flag_if(previous & 0x0f == 0x0f);
 
         self.pc = self.pc.wrapping_add(1);
 
@@ -1689,9 +1814,38 @@ impl CPU {
         self.m += 2;
     }
 
+    fn add_r16_d8(&mut self, r: &Register16) {
+        // maybe wrong
+        let value = self.read_r16(r);
+        let n = self.read_byte(self.pc + 1) as i8;
+        self.write_r16(r, value.wrapping_add(n as u16));
+
+        self.reset_z_flag();
+        self.reset_n_flag();
+        let half_carry = (value & 0x0f) + (n as u16 & 0x0f) > 0x0f;
+        self.set_h_flag_if(half_carry);
+        let carry = (value & 0xff) + (n as u16 & 0xff) > 0xff;
+        self.set_c_flag_if(carry);
+
+        self.pc = self.pc.wrapping_add(2);
+
+        self.t += 16;
+        self.m += 4;
+    }
+
     fn inc_r16(&mut self, r16: &Register16) {
         let value = self.read_r16(r16);
         self.write_r16(r16, value.wrapping_add(1));
+
+        self.pc = self.pc.wrapping_add(1);
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn dec_r16(&mut self, r16: &Register16) {
+        let value = self.read_r16(r16);
+        self.write_r16(r16, value.wrapping_sub(1));
 
         self.pc = self.pc.wrapping_add(1);
 
@@ -1758,6 +1912,18 @@ impl CPU {
         self.sp = self.sp.wrapping_add(1);
 
         self.pc = self.pc.wrapping_add(1);
+
+        self.t += 12;
+        self.m += 3;
+    }
+
+    fn jp(&mut self, condition: bool) {
+        let address = self.read_d16();
+        if condition {
+            self.pc = address;
+        } else {
+            self.pc = self.pc.wrapping_add(3);
+        }
 
         self.t += 12;
         self.m += 3;
