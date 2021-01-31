@@ -37,8 +37,10 @@ pub struct CPU {
     sp: u16,
     t: usize, // T-cycle
     m: usize, // M-cycle
+    // Interrupt Master Enable Flag
     ime: bool,
-    debug_counter: u32,
+    debug: bool,
+    halt: bool,
 }
 
 impl fmt::Debug for CPU {
@@ -82,37 +84,67 @@ impl CPU {
             t: 0,
             m: 0,
             ime: false,
-            debug_counter: 0,
+            debug: false,
+            halt: false,
         };
     }
 
     pub fn step(&mut self) -> usize {
         self.t = 0;
-        self.fetch_and_execute();
+        if self.halt {
+            // if self.mmu.interrupt_flag > 0 {
+            //     self.halt = false;
+            //     self.pc = self.pc.wrapping_add(1);
+            // } else {
+            //     self.t += 4;
+            //     self.m += 1;
+            // }
+            self.t += 4;
+            self.m += 1;
+        } else {
+            self.fetch_and_execute();
+        }
+
         self.mmu.step(self.t);
 
         // self.mmu.ppu.debug = true;
         // check for interrupts
         if self.ime {
-            // V-Blank interrupt
-            let irq = (self.mmu.interrupt_flag & 0x01) == 0x01;
-            let ie = (self.mmu.interrupt_enable & 0x01) == 0x01;
+            for i in 0..5 {
+                let irq = (self.mmu.interrupt_flag & (0x01 << i)) > 0;
+                let ie = (self.mmu.interrupt_enable & (0x01 << i)) > 0;
 
-            if irq && ie {
-                // call isr(Interrupt Serivce Routine)
-                // disable further interrupts
-                self.ime = false;
-                // reset V-Blank interrupt reqeust flag
-                self.mmu.interrupt_flag &= 0xfe;
+                // println!("i: {} irq: {:} ie: {:}", i, irq, ie);
 
-                self.sp = self.sp.wrapping_sub(2);
-                self.write_byte16(self.sp, self.pc);
-                // V-Blank handler
-                self.pc = 0x0040;
+                if irq && ie {
+                    // call isr(Interrupt Serivce Routine)
+                    // disable further interrupts
+                    self.ime = false;
+                    // stop halting because interrupt occurs
+                    self.halt = false;
+                    // reset interrupt reqeust flag
+                    self.mmu.interrupt_flag &= !(0x01 << i);
 
-                self.t += 12;
-                self.m += 3;
+                    self.sp = self.sp.wrapping_sub(2);
+                    self.write_byte16(self.sp, self.pc);
+                    self.pc = match i {
+                        // 0: V-Blank handler
+                        0 => 0x40,
+                        // 1: LCDC
+                        1 => 0x48,
+                        2 => 0x50,
+                        3 => 0x58,
+                        4 => 0x60,
+                        _ => panic!("unrecognized irq {}", i),
+                    };
+
+                    self.t += 12;
+                    self.m += 3;
+
+                    break;
+                }
             }
+            self.mmu.step(self.t);
         }
 
         return self.t;
@@ -121,18 +153,17 @@ impl CPU {
     pub fn fetch_and_execute(&mut self) {
         let instruction = self.mmu.read_byte(self.pc);
 
-        if self.pc >= 0xff {
-            // if self.pc == 0x0100 {
-            //     self.a = 0;
-            //     self.f = 0;
-            //     self.b = 0;
-            //     self.c = 0;
-            //     self.d = 0;
-            //     self.e = 0;
-            //     self.h = 0;
-            //     self.l = 0;
-            //     self.mmu.ppu.ly = 0;
-            // }
+        if !self.mmu.boot_rom_enabled {
+            if self.pc == 0x0100 {
+                self.a = 0;
+                self.f = 0;
+                self.b = 0;
+                self.c = 0;
+                self.d = 0;
+                self.e = 0;
+                self.h = 0;
+                self.l = 0;
+            }
             // println!(
             //     "byte on {:#X}: {:#X} inst: {:#X}",
             //     self.pc,
@@ -141,10 +172,17 @@ impl CPU {
             // );
             // println!("CPU STATE {:?}", self);
             // self.mmu.ppu.debug = true;
-            println!(
-                "inst: {:#X} pc: {:#X} A: {:#X} F: {:#X} B: {:#X} C: {:#X} D: {:#X} E: {:#X} H: {:#X} L: {:#X}",
-                instruction, self.pc, self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l,
-            );
+            // println!(
+            //     "pc: {:#X} A: {:#X} F: {:#X} B: {:#X} C: {:#X} D: {:#X} E: {:#X} H: {:#X} L: {:#X}",
+            //     self.pc, self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l,
+            // );
+            // if self.debug {
+            // println!(
+            //         "instr: {:#X} pc: {:#X} A: {:#X} F: {:#X} B: {:#X} C: {:#X} D: {:#X} E: {:#X} H: {:#X} L: {:#X}",
+            //         instruction,
+            //         self.pc, self.a, self.f, self.b, self.c, self.d, self.e, self.h, self.l,
+            //     );
+            // }
         }
 
         match instruction {
@@ -302,10 +340,34 @@ impl CPU {
                 self.m += 2;
             }
 
+            // 5. LD A,(C)
+            0xf2 => {
+                let address = 0xff00 + self.c as u16;
+                let value = self.read_byte(address);
+                self.a = value;
+                self.pc = self.pc.wrapping_add(1);
+
+                self.t += 8;
+                self.m += 2;
+            }
+
             // 6. LD (C),A
             0xe2 => {
                 let address = 0xff00 + self.c as u16;
                 self.write_byte(address, self.a);
+                self.pc = self.pc.wrapping_add(1);
+
+                self.t += 8;
+                self.m += 2;
+            }
+
+            // 9. LDD A,(HL)
+            0x3a => {
+                let hl = self.get_hl();
+                let value = self.read_byte(hl);
+                self.a = value;
+
+                self.set_hl(hl.wrapping_sub(1));
                 self.pc = self.pc.wrapping_add(1);
 
                 self.t += 8;
@@ -591,11 +653,7 @@ impl CPU {
                 // DEC L
                 self.dec_r8(&Register::L);
             }
-            0x35 => {
-                // DEC (HL)
-                let address = self.get_hl();
-                self.dec_m8(address);
-            }
+            0x35 => self.dec_m8(self.get_hl()),
 
             // 3.3.4. 16-Bit Arithmetic
             // 1. ADD HL,n
@@ -645,6 +703,10 @@ impl CPU {
                 self.b = ((d16 & 0xFF00) >> 8) as u8;
                 self.c = (d16 & 0x00FF) as u8;
                 self.pc += 3;
+
+                if d16 == 0x1200 {
+                    println!("pc: {:#X}", self.pc);
+                }
 
                 self.t += 12;
                 self.m += 3;
@@ -735,22 +797,10 @@ impl CPU {
             }
 
             // 7. POP nn
-            0xf1 => {
-                // POP AF
-                self.pop(&Register::A, &Register::F);
-            }
-            0xc1 => {
-                // POP BC
-                self.pop(&Register::B, &Register::C);
-            }
-            0xd1 => {
-                // POP DE
-                self.pop(&Register::D, &Register::E);
-            }
-            0xe1 => {
-                // POP HL
-                self.pop(&Register::H, &Register::L);
-            }
+            0xf1 => self.pop(&Register::A, &Register::F),
+            0xc1 => self.pop(&Register::B, &Register::C),
+            0xd1 => self.pop(&Register::D, &Register::E),
+            0xe1 => self.pop(&Register::H, &Register::L),
 
             // 3.3.8. Jumps
             // 1. JP nn
@@ -769,23 +819,12 @@ impl CPU {
                 self.m += 1;
             }
             // 4. JR n
-            0x18 => {
-                self.jr(true);
-            }
-
+            0x18 => self.jr(true),
             // 5. JR cc,n
-            0x20 => {
-                self.jr(!self.get_z_flag());
-            }
-            0x28 => {
-                self.jr(self.get_z_flag());
-            }
-            0x30 => {
-                self.jr(!self.get_c_flag());
-            }
-            0x38 => {
-                self.jr(self.get_c_flag());
-            }
+            0x20 => self.jr(!self.get_z_flag()),
+            0x28 => self.jr(self.get_z_flag()),
+            0x30 => self.jr(!self.get_c_flag()),
+            0x38 => self.jr(self.get_c_flag()),
 
             // 12. LDD (HL),A
             0x32 => {
@@ -802,6 +841,26 @@ impl CPU {
             }
 
             // 3.3.6. Rotates & Shifts
+            // 1. RLCA
+            0x07 => {
+                let previous = self.a;
+                self.a = self.a.rotate_left(1);
+
+                // self.set_z_flag_if(value == 0);
+                self.reset_z_flag();
+                self.reset_n_flag();
+                self.reset_h_flag();
+                self.set_c_flag_if((previous & 0b1000_0000) == 0b1000_0000);
+                // self.set_c_flag_if((previous >> 7 & 1) == 1);
+
+                self.pc = self.pc.wrapping_add(1);
+
+                self.t += 4;
+                self.m += 1;
+
+                // println!("RLCA A: {:#X} -> {:#X}", previous, self.a);
+            }
+
             // 2. RLA
             0x17 => {
                 let previous = self.a;
@@ -815,11 +874,24 @@ impl CPU {
 
                 self.pc = self.pc.wrapping_add(1);
 
-                self.set_z_flag_if(value == 0);
+                self.reset_z_flag();
                 self.reset_n_flag();
                 self.reset_h_flag();
                 // self.set_c_flag_if((previous & 0b1000_0000) == 0b1000_0000);
                 self.set_c_flag_if((previous >> 7 & 1) == 1);
+            }
+
+            // 3. RRCA
+            0x0f => {
+                let previous = self.a;
+                self.a = self.a.rotate_right(1);
+
+                self.pc = self.pc.wrapping_add(1);
+
+                self.reset_z_flag();
+                self.reset_n_flag();
+                self.reset_h_flag();
+                self.set_c_flag_if((previous & 0x01) > 0);
             }
 
             // 4. RRA
@@ -827,7 +899,7 @@ impl CPU {
                 let previous = self.a;
                 let mut value = self.a >> 1;
                 if self.get_c_flag() {
-                    value = value | 0x01
+                    value = value | 0x80
                 } else {
                     value = value | 0x00
                 }
@@ -843,32 +915,69 @@ impl CPU {
                 self.set_c_flag_if((previous & 0x01) > 0);
             }
 
+            // DAA
+            0x27 => {
+                // ref. https://ehaskins.com/2018-01-30%20Z80%20DAA/
+                let mut a = self.a;
+
+                if !self.get_n_flag() {
+                    if self.get_c_flag() || a > 0x99 {
+                        a = a.wrapping_add(0x60);
+                        self.set_c_flag();
+                    }
+                    if self.get_h_flag() || a & 0x0f > 0x09 {
+                        a = a.wrapping_add(0x06);
+                    }
+                } else {
+                    if self.get_c_flag() {
+                        a = a.wrapping_sub(0x60);
+                    }
+                    if self.get_h_flag() {
+                        a = a.wrapping_sub(0x06);
+                    }
+                }
+
+                self.a = a;
+
+                self.set_z_flag_if(a == 0);
+                self.reset_h_flag();
+
+                self.pc = self.pc.wrapping_add(1);
+            }
+
             // prefixed
             0xcb => {
                 let prefix = self.read_byte(self.pc + 1);
                 match prefix {
+                    // RLC
+                    0x07 => self.rlc_r8(&Register::A),
+                    0x00 => self.rlc_r8(&Register::B),
+                    0x01 => self.rlc_r8(&Register::C),
+                    0x02 => self.rlc_r8(&Register::D),
+                    0x03 => self.rlc_r8(&Register::E),
+                    0x04 => self.rlc_r8(&Register::H),
+                    0x05 => self.rlc_r8(&Register::L),
+                    0x06 => self.rlc_m8(self.get_hl()),
+
+                    // RRC
+                    0x0f => self.rrc_r8(&Register::A),
+                    0x08 => self.rrc_r8(&Register::B),
+                    0x09 => self.rrc_r8(&Register::C),
+                    0x0a => self.rrc_r8(&Register::D),
+                    0x0b => self.rrc_r8(&Register::E),
+                    0x0c => self.rrc_r8(&Register::H),
+                    0x0d => self.rrc_r8(&Register::L),
+                    0x0e => self.rrc_m8(self.get_hl()),
+
                     // RL
-                    0x17 => {
-                        self.rl(&Register::A);
-                    }
-                    0x10 => {
-                        self.rl(&Register::B);
-                    }
-                    0x11 => {
-                        self.rl(&Register::C);
-                    }
-                    0x12 => {
-                        self.rl(&Register::D);
-                    }
-                    0x13 => {
-                        self.rl(&Register::E);
-                    }
-                    0x14 => {
-                        self.rl(&Register::H);
-                    }
-                    0x15 => {
-                        self.rl(&Register::L);
-                    }
+                    0x17 => self.rl_r8(&Register::A),
+                    0x10 => self.rl_r8(&Register::B),
+                    0x11 => self.rl_r8(&Register::C),
+                    0x12 => self.rl_r8(&Register::D),
+                    0x13 => self.rl_r8(&Register::E),
+                    0x14 => self.rl_r8(&Register::H),
+                    0x15 => self.rl_r8(&Register::L),
+                    0x16 => self.rl_m8(self.get_hl()),
 
                     // 8. RR n
                     0x1f => self.rr_r8(&Register::A),
@@ -878,21 +987,37 @@ impl CPU {
                     0x1b => self.rr_r8(&Register::E),
                     0x1c => self.rr_r8(&Register::H),
                     0x1d => self.rr_r8(&Register::L),
+                    0x1e => self.rr_m8(self.get_hl()),
+
+                    // 9. SLA n
+                    0x27 => self.sla_r8(&Register::A),
+                    0x20 => self.sla_r8(&Register::B),
+                    0x21 => self.sla_r8(&Register::C),
+                    0x22 => self.sla_r8(&Register::D),
+                    0x23 => self.sla_r8(&Register::E),
+                    0x24 => self.sla_r8(&Register::H),
+                    0x25 => self.sla_r8(&Register::L),
+                    0x26 => self.sla_m8(self.get_hl()),
+
+                    // 10. SRA n
+                    0x2f => self.sra_r8(&Register::A),
+                    0x28 => self.sra_r8(&Register::B),
+                    0x29 => self.sra_r8(&Register::C),
+                    0x2a => self.sra_r8(&Register::D),
+                    0x2b => self.sra_r8(&Register::E),
+                    0x2c => self.sra_r8(&Register::H),
+                    0x2d => self.sra_r8(&Register::L),
+                    0x2e => self.sra_m8(self.get_hl()),
 
                     // 1. SWAP n
-                    0x37 => {
-                        let previous = self.a;
-                        let value = (previous & 0x0f) << 4 | (previous & 0xf0) >> 4;
-
-                        self.a = value;
-                        self.set_z_flag_if(value == 0);
-                        self.reset_n_flag();
-                        self.reset_h_flag();
-                        self.reset_c_flag();
-
-                        self.t += 8;
-                        self.m += 2;
-                    }
+                    0x37 => self.swap_r8(&Register::A),
+                    0x30 => self.swap_r8(&Register::B),
+                    0x31 => self.swap_r8(&Register::C),
+                    0x32 => self.swap_r8(&Register::D),
+                    0x33 => self.swap_r8(&Register::E),
+                    0x34 => self.swap_r8(&Register::H),
+                    0x35 => self.swap_r8(&Register::L),
+                    0x36 => self.swap_m8(self.get_hl()),
 
                     // 11. SRL n
                     0x3f => self.srl_r8(&Register::A),
@@ -902,8 +1027,27 @@ impl CPU {
                     0x3b => self.srl_r8(&Register::E),
                     0x3c => self.srl_r8(&Register::H),
                     0x3d => self.srl_r8(&Register::L),
+                    0x3e => self.srl_m8(self.get_hl()),
 
                     // BIT
+                    0x40 => self.bit_r8(0, &Register::B),
+                    0x41 => self.bit_r8(0, &Register::C),
+                    0x42 => self.bit_r8(0, &Register::D),
+                    0x43 => self.bit_r8(0, &Register::E),
+                    0x44 => self.bit_r8(0, &Register::H),
+                    0x45 => self.bit_r8(0, &Register::L),
+                    0x46 => self.bit_m8(0, self.get_hl()),
+                    0x47 => self.bit_r8(0, &Register::A),
+
+                    0x48 => self.bit_r8(1, &Register::B),
+                    0x49 => self.bit_r8(1, &Register::C),
+                    0x4a => self.bit_r8(1, &Register::D),
+                    0x4b => self.bit_r8(1, &Register::E),
+                    0x4c => self.bit_r8(1, &Register::H),
+                    0x4d => self.bit_r8(1, &Register::L),
+                    0x4e => self.bit_m8(1, self.get_hl()),
+                    0x4f => self.bit_r8(1, &Register::A),
+
                     0x50 => self.bit_r8(2, &Register::B),
                     0x51 => self.bit_r8(2, &Register::C),
                     0x52 => self.bit_r8(2, &Register::D),
@@ -915,6 +1059,15 @@ impl CPU {
                         self.bit_m8(2, hl);
                     }
                     0x57 => self.bit_r8(2, &Register::A),
+
+                    0x58 => self.bit_r8(3, &Register::B),
+                    0x59 => self.bit_r8(3, &Register::C),
+                    0x5a => self.bit_r8(3, &Register::D),
+                    0x5b => self.bit_r8(3, &Register::E),
+                    0x5c => self.bit_r8(3, &Register::H),
+                    0x5d => self.bit_r8(3, &Register::L),
+                    0x5e => self.bit_m8(3, self.get_hl()),
+                    0x5f => self.bit_r8(3, &Register::A),
 
                     0x60 => self.bit_r8(4, &Register::B),
                     0x61 => self.bit_r8(4, &Register::C),
@@ -946,10 +1099,8 @@ impl CPU {
                     0x73 => self.bit_r8(6, &Register::E),
                     0x74 => self.bit_r8(6, &Register::H),
                     0x75 => self.bit_r8(6, &Register::L),
-                    0x76 => {
-                        let hl = self.get_hl();
-                        self.bit_m8(6, hl);
-                    }
+                    0x76 => self.bit_m8(6, self.get_hl()),
+
                     0x77 => self.bit_r8(6, &Register::A),
 
                     0x78 => self.bit_r8(7, &Register::B),
@@ -965,17 +1116,150 @@ impl CPU {
                     0x7f => self.bit_r8(7, &Register::A),
 
                     // 3. RES b,r
-                    0x87 => self.res_r8(&Register::A),
-                    0x80 => self.res_r8(&Register::B),
-                    0x81 => self.res_r8(&Register::C),
-                    0x82 => self.res_r8(&Register::D),
-                    0x83 => self.res_r8(&Register::E),
-                    0x84 => self.res_r8(&Register::H),
-                    0x85 => self.res_r8(&Register::L),
-                    0x86 => {
-                        let hl = self.get_hl();
-                        self.res_m8(hl);
-                    }
+                    0x80 => self.res_r8(0, &Register::B),
+                    0x81 => self.res_r8(0, &Register::C),
+                    0x82 => self.res_r8(0, &Register::D),
+                    0x83 => self.res_r8(0, &Register::E),
+                    0x84 => self.res_r8(0, &Register::H),
+                    0x85 => self.res_r8(0, &Register::L),
+                    0x86 => self.res_m8(0, self.get_hl()),
+                    0x87 => self.res_r8(0, &Register::A),
+
+                    0x88 => self.res_r8(1, &Register::B),
+                    0x89 => self.res_r8(1, &Register::C),
+                    0x8a => self.res_r8(1, &Register::D),
+                    0x8b => self.res_r8(1, &Register::E),
+                    0x8c => self.res_r8(1, &Register::H),
+                    0x8d => self.res_r8(1, &Register::L),
+                    0x8e => self.res_m8(1, self.get_hl()),
+                    0x8f => self.res_r8(1, &Register::A),
+
+                    0x90 => self.res_r8(2, &Register::B),
+                    0x91 => self.res_r8(2, &Register::C),
+                    0x92 => self.res_r8(2, &Register::D),
+                    0x93 => self.res_r8(2, &Register::E),
+                    0x94 => self.res_r8(2, &Register::H),
+                    0x95 => self.res_r8(2, &Register::L),
+                    0x96 => self.res_m8(2, self.get_hl()),
+                    0x97 => self.res_r8(2, &Register::A),
+
+                    0x98 => self.res_r8(3, &Register::B),
+                    0x99 => self.res_r8(3, &Register::C),
+                    0x9a => self.res_r8(3, &Register::D),
+                    0x9b => self.res_r8(3, &Register::E),
+                    0x9c => self.res_r8(3, &Register::H),
+                    0x9d => self.res_r8(3, &Register::L),
+                    0x9e => self.res_m8(3, self.get_hl()),
+                    0x9f => self.res_r8(3, &Register::A),
+
+                    0xa0 => self.res_r8(4, &Register::B),
+                    0xa1 => self.res_r8(4, &Register::C),
+                    0xa2 => self.res_r8(4, &Register::D),
+                    0xa3 => self.res_r8(4, &Register::E),
+                    0xa4 => self.res_r8(4, &Register::H),
+                    0xa5 => self.res_r8(4, &Register::L),
+                    0xa6 => self.res_m8(4, self.get_hl()),
+                    0xa7 => self.res_r8(4, &Register::A),
+
+                    0xa8 => self.res_r8(5, &Register::B),
+                    0xa9 => self.res_r8(5, &Register::C),
+                    0xaa => self.res_r8(5, &Register::D),
+                    0xab => self.res_r8(5, &Register::E),
+                    0xac => self.res_r8(5, &Register::H),
+                    0xad => self.res_r8(5, &Register::L),
+                    0xae => self.res_m8(5, self.get_hl()),
+                    0xaf => self.res_r8(5, &Register::A),
+
+                    0xb0 => self.res_r8(6, &Register::B),
+                    0xb1 => self.res_r8(6, &Register::C),
+                    0xb2 => self.res_r8(6, &Register::D),
+                    0xb3 => self.res_r8(6, &Register::E),
+                    0xb4 => self.res_r8(6, &Register::H),
+                    0xb5 => self.res_r8(6, &Register::L),
+                    0xb6 => self.res_m8(6, self.get_hl()),
+                    0xb7 => self.res_r8(6, &Register::A),
+
+                    0xb8 => self.res_r8(7, &Register::B),
+                    0xb9 => self.res_r8(7, &Register::C),
+                    0xba => self.res_r8(7, &Register::D),
+                    0xbb => self.res_r8(7, &Register::E),
+                    0xbc => self.res_r8(7, &Register::H),
+                    0xbd => self.res_r8(7, &Register::L),
+                    0xbe => self.res_m8(7, self.get_hl()),
+                    0xbf => self.res_r8(7, &Register::A),
+
+                    // 2. SET b,r
+                    0xc0 => self.set_r8(0, &Register::B),
+                    0xc1 => self.set_r8(0, &Register::C),
+                    0xc2 => self.set_r8(0, &Register::D),
+                    0xc3 => self.set_r8(0, &Register::E),
+                    0xc4 => self.set_r8(0, &Register::H),
+                    0xc5 => self.set_r8(0, &Register::L),
+                    0xc6 => self.set_m8(0, self.get_hl()),
+                    0xc7 => self.set_r8(0, &Register::A),
+
+                    0xc8 => self.set_r8(1, &Register::B),
+                    0xc9 => self.set_r8(1, &Register::C),
+                    0xca => self.set_r8(1, &Register::D),
+                    0xcb => self.set_r8(1, &Register::E),
+                    0xcc => self.set_r8(1, &Register::H),
+                    0xcd => self.set_r8(1, &Register::L),
+                    0xce => self.set_m8(1, self.get_hl()),
+                    0xcf => self.set_r8(1, &Register::A),
+
+                    0xd0 => self.set_r8(2, &Register::B),
+                    0xd1 => self.set_r8(2, &Register::C),
+                    0xd2 => self.set_r8(2, &Register::D),
+                    0xd3 => self.set_r8(2, &Register::E),
+                    0xd4 => self.set_r8(2, &Register::H),
+                    0xd5 => self.set_r8(2, &Register::L),
+                    0xd6 => self.set_m8(2, self.get_hl()),
+                    0xd7 => self.set_r8(2, &Register::A),
+
+                    0xd8 => self.set_r8(3, &Register::B),
+                    0xd9 => self.set_r8(3, &Register::C),
+                    0xda => self.set_r8(3, &Register::D),
+                    0xdb => self.set_r8(3, &Register::E),
+                    0xdc => self.set_r8(3, &Register::H),
+                    0xdd => self.set_r8(3, &Register::L),
+                    0xde => self.set_m8(3, self.get_hl()),
+                    0xdf => self.set_r8(3, &Register::A),
+
+                    0xe0 => self.set_r8(4, &Register::B),
+                    0xe1 => self.set_r8(4, &Register::C),
+                    0xe2 => self.set_r8(4, &Register::D),
+                    0xe3 => self.set_r8(4, &Register::E),
+                    0xe4 => self.set_r8(4, &Register::H),
+                    0xe5 => self.set_r8(4, &Register::L),
+                    0xe6 => self.set_m8(4, self.get_hl()),
+                    0xe7 => self.set_r8(4, &Register::A),
+
+                    0xe8 => self.set_r8(5, &Register::B),
+                    0xe9 => self.set_r8(5, &Register::C),
+                    0xea => self.set_r8(5, &Register::D),
+                    0xeb => self.set_r8(5, &Register::E),
+                    0xec => self.set_r8(5, &Register::H),
+                    0xed => self.set_r8(5, &Register::L),
+                    0xee => self.set_m8(5, self.get_hl()),
+                    0xef => self.set_r8(5, &Register::A),
+
+                    0xf0 => self.set_r8(6, &Register::B),
+                    0xf1 => self.set_r8(6, &Register::C),
+                    0xf2 => self.set_r8(6, &Register::D),
+                    0xf3 => self.set_r8(6, &Register::E),
+                    0xf4 => self.set_r8(6, &Register::H),
+                    0xf5 => self.set_r8(6, &Register::L),
+                    0xf6 => self.set_m8(6, self.get_hl()),
+                    0xf7 => self.set_r8(6, &Register::A),
+
+                    0xf8 => self.set_r8(7, &Register::B),
+                    0xf9 => self.set_r8(7, &Register::C),
+                    0xfa => self.set_r8(7, &Register::D),
+                    0xfb => self.set_r8(7, &Register::E),
+                    0xfc => self.set_r8(7, &Register::H),
+                    0xfd => self.set_r8(7, &Register::L),
+                    0xfe => self.set_m8(7, self.get_hl()),
+                    0xff => self.set_r8(7, &Register::A),
 
                     _ => {
                         panic!("unrecognized prefix {:x}", prefix);
@@ -994,10 +1278,20 @@ impl CPU {
             0xd4 => self.call_if(!self.get_c_flag()),
             0xdc => self.call_if(self.get_c_flag()),
 
-            // 1. RET
-            0xc9 => {
-                self.ret();
+            // 1. RST n
+            0xc7 | 0xcf | 0xd7 | 0xdf | 0xe7 | 0xef | 0xf7 | 0xff => {
+                self.sp = self.sp.wrapping_sub(2);
+                self.write_byte16(self.sp, self.pc + 1);
+
+                self.pc = 0x0000 + instruction as u16 - 0x00c7;
+                // self.pc = self.pc.wrapping_add(1);
+
+                self.t += 16;
+                self.m += 4;
             }
+
+            // 1. RET
+            0xc9 => self.ret(),
 
             // 2. RET cc
             0xc0 => {
@@ -1035,17 +1329,69 @@ impl CPU {
                 self.ime = true;
             }
 
-            // 7. HALT
-            0x76 => {
-                // self.pc = self.pc.wrapping_add(1);
+            // CPL
+            0x2f => {
+                // Complement A register. (Flip all bits.)
+                self.a = !self.a;
+
+                self.set_n_flag();
+                self.set_h_flag();
+
+                self.pc = self.pc.wrapping_add(1);
 
                 self.t += 4;
                 self.m += 1;
             }
 
+            // 4. CCF
+            0x3f => {
+                self.reset_n_flag();
+                self.reset_h_flag();
+                if self.get_c_flag() {
+                    self.reset_c_flag();
+                } else {
+                    self.set_c_flag();
+                }
+
+                self.pc = self.pc.wrapping_add(1);
+
+                self.t += 4;
+                self.m += 1;
+            }
+
+            // 5. SCF
+            0x37 => {
+                self.reset_n_flag();
+                self.reset_h_flag();
+                self.set_c_flag();
+
+                self.pc = self.pc.wrapping_add(1);
+
+                self.t += 4;
+                self.m += 1;
+            }
+
+            // 7. HALT
+            0x76 => {
+                // self.halt = true;
+                // halt until interrupt occurs
+                if self.ime {
+                    self.halt = true;
+                } else {
+                    // self.pc = self.pc.wrapping_add(1);
+                }
+            }
+
+            // 8. STOP
+            0x10 => {
+                self.t += 4;
+                self.m += 1;
+
+                self.pc = self.pc.wrapping_add(1);
+            }
+
             // EI
             0xfb => {
-                // Disables interrupt handling by setting IME=0
                 self.ime = true;
                 self.pc += 1;
 
@@ -1570,7 +1916,7 @@ impl CPU {
 
         self.set_z_flag_if(a == value);
         self.set_n_flag();
-        self.set_h_flag_if(a & 0x0f < value & 0x0f);
+        self.set_h_flag_if((a & 0x0f) < (value & 0x0f));
         self.set_c_flag_if(a < value);
 
         self.pc = self.pc.wrapping_add(1);
@@ -1658,29 +2004,41 @@ impl CPU {
         self.m += 2;
     }
 
-    fn res_r8(&mut self, r: &Register) {
+    fn res_r8(&mut self, b: u8, r: &Register) {
+        // Reset bit b in register r.
         let value = self.read_r8(r);
-        let b = self.read_byte(self.pc + 1);
         self.write_r8(r, value & !(1 << b));
-
-        self.pc = self.pc.wrapping_add(2);
 
         self.t += 8;
         self.m += 2;
     }
 
-    fn res_m8(&mut self, address: u16) {
+    fn res_m8(&mut self, b: u8, address: u16) {
         let value = self.read_byte(address);
-        let b = self.read_byte(self.pc + 1);
         self.write_byte(address, value & !(1 << b));
-
-        self.pc = self.pc.wrapping_add(2);
 
         self.t += 16;
         self.m += 4;
     }
 
-    fn rl(&mut self, r: &Register) {
+    fn set_r8(&mut self, b: u8, r: &Register) {
+        // Reset bit b in register r.
+        let value = self.read_r8(r);
+        self.write_r8(r, value | (1 << b));
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn set_m8(&mut self, b: u8, address: u16) {
+        let value = self.read_byte(address);
+        self.write_byte(address, value | (1 << b));
+
+        self.t += 16;
+        self.m += 4;
+    }
+
+    fn rl_r8(&mut self, r: &Register) {
         // rorate left through Carry flag
         // ref. https://ja.wikipedia.org/wiki/%E3%83%93%E3%83%83%E3%83%88%E6%BC%94%E7%AE%97#/media/%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB:Rotate_left_through_carry.svg
         let previous = self.read_r8(r);
@@ -1696,6 +2054,87 @@ impl CPU {
         self.reset_n_flag();
         self.reset_h_flag();
         self.set_c_flag_if((previous & 0b1000_0000) == 0b1000_0000);
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn rl_m8(&mut self, address: u16) {
+        // rorate left through Carry flag
+        // ref. https://ja.wikipedia.org/wiki/%E3%83%93%E3%83%83%E3%83%88%E6%BC%94%E7%AE%97#/media/%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB:Rotate_left_through_carry.svg
+        let previous = self.read_byte(address);
+        let mut value = self.read_byte(address) << 1;
+        if self.get_c_flag() {
+            value = value | 0x01;
+        } else {
+            value = value | 0x00;
+        }
+        self.write_byte(address, value);
+
+        self.set_z_flag_if(value == 0);
+        self.reset_n_flag();
+        self.reset_h_flag();
+        self.set_c_flag_if((previous & 0b1000_0000) == 0b1000_0000);
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn rlc_r8(&mut self, r: &Register) {
+        // Rotate n left. Old bit 7 to Carry flag.
+        let previous = self.read_r8(r);
+        let value = previous.rotate_left(1);
+        self.write_r8(r, value);
+
+        self.set_z_flag_if(value == 0);
+        self.reset_n_flag();
+        self.reset_h_flag();
+        self.set_c_flag_if((previous & 0b1000_0000) == 0b1000_0000);
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn rlc_m8(&mut self, address: u16) {
+        // Rotate n left. Old bit 7 to Carry flag.
+        let previous = self.read_byte(address);
+        let value = previous.rotate_left(1);
+        self.write_byte(address, value);
+
+        self.set_z_flag_if(value == 0);
+        self.reset_n_flag();
+        self.reset_h_flag();
+        self.set_c_flag_if((previous & 0b1000_0000) == 0b1000_0000);
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn rrc_r8(&mut self, r: &Register) {
+        // Rotate n right. Old bit 0 to Carry flag.
+        let previous = self.read_r8(r);
+        let value = self.read_r8(r).rotate_right(1);
+        self.write_r8(r, value);
+
+        self.set_z_flag_if(value == 0);
+        self.reset_n_flag();
+        self.reset_h_flag();
+        self.set_c_flag_if((previous & 0x01) > 0);
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn rrc_m8(&mut self, address: u16) {
+        // Rotate n right. Old bit 0 to Carry flag.
+        let previous = self.read_byte(address);
+        let value = self.read_byte(address).rotate_right(1);
+        self.write_byte(address, value);
+
+        self.set_z_flag_if(value == 0);
+        self.reset_n_flag();
+        self.reset_h_flag();
+        self.set_c_flag_if((previous & 0x01) > 0);
 
         self.t += 8;
         self.m += 2;
@@ -1720,9 +2159,85 @@ impl CPU {
         self.m += 2;
     }
 
+    fn rr_m8(&mut self, address: u16) {
+        let previous = self.read_byte(address);
+        let mut value = self.read_byte(address) >> 1;
+        if self.get_c_flag() {
+            value = value | 0x80;
+        } else {
+            value = value | 0x00;
+        }
+        self.write_byte(address, value);
+
+        self.set_z_flag_if(value == 0);
+        self.reset_n_flag();
+        self.reset_h_flag();
+        self.set_c_flag_if((previous & 0x01) > 0);
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn sla_r8(&mut self, r: &Register) {
+        let previous = self.read_r8(r);
+        let value = self.read_r8(r) << 1;
+        self.write_r8(r, value);
+
+        self.set_z_flag_if(value == 0);
+        self.reset_n_flag();
+        self.reset_h_flag();
+        self.set_c_flag_if((previous & 0b1000_0000) == 0b1000_0000);
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn sla_m8(&mut self, address: u16) {
+        let previous = self.read_byte(address);
+        let value = self.read_byte(address) << 1;
+        self.write_byte(address, value);
+
+        self.set_z_flag_if(value == 0);
+        self.reset_n_flag();
+        self.reset_h_flag();
+        self.set_c_flag_if((previous & 0b1000_0000) == 0b1000_0000);
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn sra_r8(&mut self, r: &Register) {
+        // Shift n right into Carry. MSB doesn't change.
+        let previous = self.read_r8(r);
+        let value = self.read_r8(r) >> 1;
+        self.write_r8(r, value | (previous & 0x80));
+
+        self.set_z_flag_if(value == 0);
+        self.reset_n_flag();
+        self.reset_h_flag();
+        self.set_c_flag_if((previous & 0x01) > 0);
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn sra_m8(&mut self, address: u16) {
+        // Shift n right into Carry. MSB doesn't change.
+        let previous = self.read_byte(address);
+        let value = self.read_byte(address) >> 1;
+        self.write_byte(address, value | (previous & 0x80));
+
+        self.set_z_flag_if(value == 0);
+        self.reset_n_flag();
+        self.reset_h_flag();
+        self.set_c_flag_if((previous & 0x01) > 0);
+
+        self.t += 8;
+        self.m += 2;
+    }
+
     fn srl_r8(&mut self, r: &Register) {
-        // rorate left through Carry flag
-        // ref. https://ja.wikipedia.org/wiki/%E3%83%93%E3%83%83%E3%83%88%E6%BC%94%E7%AE%97#/media/%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB:Rotate_left_through_carry.svg
+        // Shift n right into Carry. MSB set to 0.
         let previous = self.read_r8(r);
         let value = self.read_r8(r) >> 1;
         self.write_r8(r, value);
@@ -1731,6 +2246,49 @@ impl CPU {
         self.reset_n_flag();
         self.reset_h_flag();
         self.set_c_flag_if((previous & 0x01) > 0);
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn srl_m8(&mut self, address: u16) {
+        // Shift n right into Carry. MSB set to 0.
+        let previous = self.read_byte(address);
+        let value = self.read_byte(address) >> 1;
+        self.write_byte(address, value);
+
+        self.set_z_flag_if(value == 0);
+        self.reset_n_flag();
+        self.reset_h_flag();
+        self.set_c_flag_if((previous & 0x01) > 0);
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn swap_r8(&mut self, r: &Register) {
+        let previous = self.read_r8(r);
+        let value = (previous & 0x0f) << 4 | (previous & 0xf0) >> 4;
+
+        self.write_r8(r, value);
+        self.set_z_flag_if(value == 0);
+        self.reset_n_flag();
+        self.reset_h_flag();
+        self.reset_c_flag();
+
+        self.t += 8;
+        self.m += 2;
+    }
+
+    fn swap_m8(&mut self, address: u16) {
+        let previous = self.read_byte(address);
+        let value = (previous & 0x0f) << 4 | (previous & 0xf0) >> 4;
+
+        self.write_byte(address, value);
+        self.set_z_flag_if(value == 0);
+        self.reset_n_flag();
+        self.reset_h_flag();
+        self.reset_c_flag();
 
         self.t += 8;
         self.m += 2;
@@ -1877,7 +2435,7 @@ impl CPU {
 
         //update the flags
         self.set_z_flag_if(new_value == 0);
-        self.reset_n_flag();
+        self.set_n_flag();
         // Set if carry from bit 4.
         self.set_h_flag_if(previous & 0x0f == 0);
 
@@ -1896,6 +2454,14 @@ impl CPU {
         let low = self.read_r8(lsb);
         self.write_byte(self.sp, low);
 
+        // println!(
+        //     "PUSH {:?}{:?} -> {:#X} {:X}",
+        //     msb,
+        //     lsb,
+        //     self.read_r8(msb),
+        //     self.read_r8(lsb)
+        // );
+
         self.pc = self.pc.wrapping_add(1);
 
         self.t += 16;
@@ -1903,13 +2469,29 @@ impl CPU {
     }
 
     fn pop(&mut self, msb: &Register, lsb: &Register) {
-        let low = self.read_byte(self.sp);
+        let mut low = self.read_byte(self.sp);
+        match lsb {
+            &Register::F => {
+                // https://forums.nesdev.com/viewtopic.php?f=20&t=12815
+                // the lower 4 bits of the F register is always zero.
+                low &= 0xf0;
+            }
+            _ => {}
+        }
         self.write_r8(lsb, low);
         self.sp = self.sp.wrapping_add(1);
 
         let high = self.read_byte(self.sp);
         self.write_r8(msb, high);
         self.sp = self.sp.wrapping_add(1);
+
+        // println!(
+        //     "POP {:?}{:?} <- {:#X} {:X}",
+        //     msb,
+        //     lsb,
+        //     self.read_r8(msb),
+        //     self.read_r8(lsb)
+        // );
 
         self.pc = self.pc.wrapping_add(1);
 
@@ -1990,6 +2572,9 @@ impl CPU {
             self.call();
         } else {
             self.pc = self.pc.wrapping_add(3);
+
+            self.t += 12;
+            self.m += 3;
         }
     }
 

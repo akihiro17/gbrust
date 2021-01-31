@@ -2,13 +2,15 @@ use std::fs::File;
 use std::io::Read;
 
 use crate::ppu::PPU;
+use crate::timer::Timer;
 
 pub struct MMU {
     boot_rom: Vec<u8>, // 0x0000 to 0x00FF
     rom: Vec<u8>,
     ram: [u8; 65536], // 0x0000 to 0xffff
     pub ppu: PPU,
-    boot_rom_enabled: bool,
+    pub timer: Timer,
+    pub boot_rom_enabled: bool,
     pub interrupt_flag: u8,
     pub interrupt_enable: u8,
 }
@@ -20,24 +22,17 @@ impl MMU {
 
         file.read_to_end(&mut rom).unwrap();
 
-        for &byte in rom.iter() {
-            // println!("{:#x}", (byte as u16));
-        }
-
         let mut boot_rom_file = File::open(boot_rom_name).unwrap();
         let mut boot_rom = Vec::<u8>::new();
 
         boot_rom_file.read_to_end(&mut boot_rom).unwrap();
-
-        for &byte in rom.iter() {
-            // println!("{:#x}", (byte as u16));
-        }
 
         return MMU {
             boot_rom: boot_rom,
             rom: rom,
             ram: [0; 65536],
             ppu: PPU::new(),
+            timer: Timer::new(),
             boot_rom_enabled: true,
             interrupt_flag: 0,
             interrupt_enable: 0,
@@ -46,11 +41,18 @@ impl MMU {
 
     pub fn step(&mut self, clocks: usize) {
         self.ppu.step(clocks);
+        self.timer.step(clocks);
 
         // V-Blank interrupt Request
         if self.ppu.vblank {
             self.interrupt_flag |= 0x01;
             self.ppu.vblank = false;
+        }
+
+        // Timer interrupt Request
+        if self.timer.irq {
+            self.interrupt_flag |= 0x04;
+            self.timer.irq = false;
         }
     }
 
@@ -76,7 +78,7 @@ impl MMU {
 
             // for console
             0xff01 => {
-                // println!("console: {}", value as char);
+                println!("console: {}", value as char);
             }
 
             // I/O Registers
@@ -94,6 +96,9 @@ impl MMU {
                     self.write_byte(0xfe00 | i, v);
                 }
             }
+
+            // Timer
+            0xff04..=0xff07 => self.timer.write_byte(address, value),
 
             // Interrupt Flag
             0xff0f => {
@@ -143,6 +148,9 @@ impl MMU {
                 return self.ppu.read(address);
             }
 
+            // Timer
+            0xff04..=0xff07 => self.timer.read_byte(address),
+
             // Interrupt Flag
             0xff0f => {
                 return self.interrupt_flag;
@@ -151,6 +159,9 @@ impl MMU {
             0xffff => {
                 return self.interrupt_enable;
             }
+
+            // KEY1 - CGB Mode Only - Prepare Speed Switch
+            0xff4d => 0xFF,
 
             _ => {
                 return self.ram[address as usize];

@@ -1,6 +1,7 @@
 mod cpu;
 mod mmu;
 mod ppu;
+mod timer;
 
 use std::thread;
 use std::time;
@@ -22,11 +23,19 @@ fn main() {
     // Limit to max ~60 fps update rate
     // window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
+    // x let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/Tetris.gb");
+    let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/cpu_instrs.gb");
+    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/02.gb");
+    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/01.gb");
+    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/11.gb");
+    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/10.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/03.gb");
-    let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/07.gb");
+    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/09.gb");
+    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/07.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/05.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/04.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/ld.gb");
+    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/08.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/sprite.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/window.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/bg_scroll_x_y.gb");
