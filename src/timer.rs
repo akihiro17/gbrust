@@ -66,16 +66,15 @@ impl Timer {
                 _ => panic!("invalid devider {:X}", self.tac),
             };
 
+            // 0 -> 1
             let t1 = self.div >> divider as u16;
             let t2 = previous >> divider as u16;
-            let mask = (1 << (16 - divider)) - 1;
-            let diff = t1.wrapping_sub(t2) & mask;
+            let diff = t1.wrapping_sub(t2);
 
             if diff > 0 {
                 let (value, overflow) = self.tima.overflowing_add(diff as u8);
 
                 if overflow {
-                    println!("timer interrupt");
                     // when the TIMA register overflows (being incremented when the value is 0xFF),
                     // it is “reloaded” with the value of the TMA register at $FF06
                     // self.tima = self.tma;

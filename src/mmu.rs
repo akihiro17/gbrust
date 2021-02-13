@@ -1,13 +1,16 @@
 use std::fs::File;
 use std::io::Read;
 
+use crate::catridge::Catridge;
 use crate::ppu::PPU;
 use crate::timer::Timer;
 
 pub struct MMU {
     boot_rom: Vec<u8>, // 0x0000 to 0x00FF
-    rom: Vec<u8>,
+    catridge: Catridge,
     ram: [u8; 65536], // 0x0000 to 0xffff
+    /// High RAM
+    hram: [u8; 0x7f],
     pub ppu: PPU,
     pub timer: Timer,
     pub boot_rom_enabled: bool,
@@ -29,8 +32,9 @@ impl MMU {
 
         return MMU {
             boot_rom: boot_rom,
-            rom: rom,
+            catridge: Catridge::new(rom_name),
             ram: [0; 65536],
+            hram: [0; 0x7f],
             ppu: PPU::new(),
             timer: Timer::new(),
             boot_rom_enabled: true,
@@ -62,15 +66,23 @@ impl MMU {
             0x0000..=0x00ff => {
                 self.boot_rom[address as usize] = value;
             }
+
             // rom
             0x0100..=0x7fff => {
-                self.rom[address as usize] = value;
+                self.catridge.write(address, value);
             }
+
             // PPU
             // VRAM
             0x8000..=0x9fff => {
                 self.ppu.write(address, value);
             }
+
+            // External RAM
+            0xa000..=0xbfff => {
+                self.catridge.write(address, value);
+            }
+
             // OAM
             0xfe00..=0xfe9f => {
                 self.ppu.write(address, value);
@@ -78,7 +90,7 @@ impl MMU {
 
             // for console
             0xff01 => {
-                println!("console: {}", value as char);
+                print!("{}", value as char);
             }
 
             // I/O Registers
@@ -113,6 +125,10 @@ impl MMU {
                 // Reset boot rom
                 self.boot_rom_enabled = false;
             }
+
+            // HRAM
+            0xff80..=0xfffe => self.hram[(address & 0x7f) as usize] = value,
+
             _ => {
                 if address == 0xff46 {
                     panic!("should implement dma");
@@ -129,14 +145,24 @@ impl MMU {
                     return self.boot_rom[address as usize];
                 }
 
-                return self.rom[address as usize];
+                return self.catridge.read(address);
             }
+
+            // ROM
             0x0100..=0x7fff => {
-                return self.rom[address as usize];
+                // return self.rom[address as usize];
+                return self.catridge.read(address);
             }
+
             // PPU
             0x8000..=0x9fff => {
                 return self.ppu.read(address);
+            }
+
+            // RAM
+            // External RAM
+            0xa000..=0xbfff => {
+                return self.catridge.read(address);
             }
 
             // OAM
@@ -160,11 +186,12 @@ impl MMU {
                 return self.interrupt_enable;
             }
 
-            // KEY1 - CGB Mode Only - Prepare Speed Switch
-            0xff4d => 0xFF,
+            // HRAM
+            0xff80..=0xfffe => self.hram[(address & 0x7f) as usize],
 
             _ => {
                 return self.ram[address as usize];
+                // 0xff
             }
         }
     }

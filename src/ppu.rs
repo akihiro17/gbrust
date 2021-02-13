@@ -1,5 +1,4 @@
 use std::fmt;
-use std::thread;
 
 pub struct PPU {
     mode: u8,

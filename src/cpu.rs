@@ -1,6 +1,5 @@
-use std::fmt;
-
 use crate::mmu::MMU;
+use std::fmt;
 
 #[derive(Debug)]
 enum Register {
@@ -23,6 +22,58 @@ enum Register16 {
     SP,
 }
 
+struct Reg {
+    // The value of the register
+    value: u16,
+
+    mask: u16,
+}
+
+impl Reg {
+    pub fn new(value: u16, mask: u16) -> Self {
+        return Reg {
+            value: value,
+            mask: mask,
+        };
+    }
+
+    pub fn high(&self) -> u8 {
+        return (self.value >> 8) as u8;
+    }
+
+    pub fn low(&self) -> u8 {
+        return (self.value & 0x00ff) as u8;
+    }
+
+    pub fn high_low(&self) -> u16 {
+        return self.value;
+    }
+
+    pub fn set_high(&mut self, value: u8) {
+        self.value = (value as u16) << 8 | (self.value & 0x00ff) as u16;
+
+        if self.mask != 0 {
+            self.value &= self.mask;
+        }
+    }
+
+    pub fn set_low(&mut self, value: u8) {
+        self.value = (self.value & 0xff00) | (value as u16) & 0x00ff;
+
+        if self.mask != 0 {
+            self.value &= self.mask;
+        }
+    }
+
+    pub fn set(&mut self, value: u16) {
+        self.value = value;
+
+        if self.mask != 0 {
+            self.value &= self.mask;
+        }
+    }
+}
+
 pub struct CPU {
     pub mmu: MMU,
     a: u8,
@@ -41,6 +92,8 @@ pub struct CPU {
     ime: bool,
     debug: bool,
     halt: bool,
+
+    af: Reg,
 }
 
 impl fmt::Debug for CPU {
@@ -86,21 +139,19 @@ impl CPU {
             ime: false,
             debug: false,
             halt: false,
+            af: Reg::new(0, 0xfff0),
         };
     }
 
     pub fn step(&mut self) -> usize {
         self.t = 0;
         if self.halt {
-            // if self.mmu.interrupt_flag > 0 {
-            //     self.halt = false;
-            //     self.pc = self.pc.wrapping_add(1);
-            // } else {
-            //     self.t += 4;
-            //     self.m += 1;
-            // }
-            self.t += 4;
-            self.m += 1;
+            if self.mmu.interrupt_flag > 0 {
+                self.halt = false;
+            } else {
+                self.t += 4;
+                self.m += 1;
+            }
         } else {
             self.fetch_and_execute();
         }
@@ -144,7 +195,6 @@ impl CPU {
                     break;
                 }
             }
-            self.mmu.step(self.t);
         }
 
         return self.t;
@@ -186,6 +236,7 @@ impl CPU {
         }
 
         match instruction {
+            // nop
             0x0 => {
                 self.pc = self.pc.wrapping_add(1);
                 self.t += 4;
@@ -420,37 +471,17 @@ impl CPU {
 
             // 3.3.3. 8-Bit ALU
             // 1. ADD A,n
-            0x87 => {
-                self.add_r8(&Register::A);
-            }
-            0x80 => {
-                self.add_r8(&Register::B);
-            }
-            0x81 => {
-                self.add_r8(&Register::C);
-            }
-            0x82 => {
-                self.add_r8(&Register::D);
-            }
-            0x83 => {
-                self.add_r8(&Register::E);
-            }
-            0x84 => {
-                self.add_r8(&Register::H);
-            }
-            0x85 => {
-                self.add_r8(&Register::L);
-            }
-            0x86 => {
-                let hl = self.get_hl();
-                self.add_m8(hl);
-            }
-            0xc6 => {
-                self.add_d8();
-            }
+            0x80 => self.add_r8(&Register::B),
+            0x81 => self.add_r8(&Register::C),
+            0x82 => self.add_r8(&Register::D),
+            0x83 => self.add_r8(&Register::E),
+            0x84 => self.add_r8(&Register::H),
+            0x85 => self.add_r8(&Register::L),
+            0x86 => self.add_m8(self.get_hl()),
+            0x87 => self.add_r8(&Register::A),
+            0xc6 => self.add_d8(),
 
             // 2. ADC A,n
-            0x8f => self.adc_r8(&Register::A),
             0x88 => self.adc_r8(&Register::B),
             0x89 => self.adc_r8(&Register::C),
             0x8a => self.adc_r8(&Register::D),
@@ -458,30 +489,17 @@ impl CPU {
             0x8c => self.adc_r8(&Register::H),
             0x8d => self.adc_r8(&Register::L),
             0x8e => self.adc_m8(self.get_hl()),
+            0x8f => self.adc_r8(&Register::A),
             0xce => self.adc_d8(),
 
             // 3. SUB n
-            0x97 => {
-                self.sub_r8(&Register::A);
-            }
-            0x90 => {
-                self.sub_r8(&Register::B);
-            }
-            0x91 => {
-                self.sub_r8(&Register::C);
-            }
-            0x92 => {
-                self.sub_r8(&Register::D);
-            }
-            0x93 => {
-                self.sub_r8(&Register::E);
-            }
-            0x94 => {
-                self.sub_r8(&Register::H);
-            }
-            0x95 => {
-                self.sub_r8(&Register::L);
-            }
+            0x97 => self.sub_r8(&Register::A),
+            0x90 => self.sub_r8(&Register::B),
+            0x91 => self.sub_r8(&Register::C),
+            0x92 => self.sub_r8(&Register::D),
+            0x93 => self.sub_r8(&Register::E),
+            0x94 => self.sub_r8(&Register::H),
+            0x95 => self.sub_r8(&Register::L),
             0x96 => self.sub_m8(self.get_hl()),
             0xd6 => self.sub_d8(),
 
@@ -497,27 +515,13 @@ impl CPU {
             0xde => self.sbc_d8(),
 
             // 8. CP n
-            0xbf => {
-                self.cp_r8(&Register::A);
-            }
-            0xb8 => {
-                self.cp_r8(&Register::B);
-            }
-            0xb9 => {
-                self.cp_r8(&Register::C);
-            }
-            0xba => {
-                self.cp_r8(&Register::D);
-            }
-            0xbb => {
-                self.cp_r8(&Register::E);
-            }
-            0xbc => {
-                self.cp_r8(&Register::H);
-            }
-            0xbd => {
-                self.cp_r8(&Register::L);
-            }
+            0xbf => self.cp_r8(&Register::A),
+            0xb8 => self.cp_r8(&Register::B),
+            0xb9 => self.cp_r8(&Register::C),
+            0xba => self.cp_r8(&Register::D),
+            0xbb => self.cp_r8(&Register::E),
+            0xbc => self.cp_r8(&Register::H),
+            0xbd => self.cp_r8(&Register::L),
             0xbe => {
                 let a = self.a;
                 let address = self.get_hl();
@@ -533,9 +537,7 @@ impl CPU {
                 self.t += 8;
                 self.m += 2;
             }
-            0xfe => {
-                self.cp_d8();
-            }
+            0xfe => self.cp_d8(),
 
             // 5. AND n
             0xa7 => self.and_r8(&Register::A),
@@ -545,10 +547,7 @@ impl CPU {
             0xa3 => self.and_r8(&Register::E),
             0xa4 => self.and_r8(&Register::H),
             0xa5 => self.and_r8(&Register::L),
-            0xa6 => {
-                let hl = self.get_hl();
-                self.and_m8(hl);
-            }
+            0xa6 => self.and_m8(self.get_hl()),
             0xe6 => self.and_d8(),
 
             // 6. OR n
@@ -563,96 +562,34 @@ impl CPU {
             0xf6 => self.or_d8(),
 
             // 7. XOR n
-            0xaf => {
-                self.xor_r8(&Register::A);
-            }
-            0xa8 => {
-                self.xor_r8(&Register::B);
-            }
-            0xa9 => {
-                self.xor_r8(&Register::C);
-            }
-            0xaa => {
-                self.xor_r8(&Register::D);
-            }
-            0xab => {
-                self.xor_r8(&Register::E);
-            }
-            0xac => {
-                self.xor_r8(&Register::H);
-            }
-            0xad => {
-                self.xor_r8(&Register::L);
-            }
+            0xaf => self.xor_r8(&Register::A),
+            0xa8 => self.xor_r8(&Register::B),
+            0xa9 => self.xor_r8(&Register::C),
+            0xaa => self.xor_r8(&Register::D),
+            0xab => self.xor_r8(&Register::E),
+            0xac => self.xor_r8(&Register::H),
+            0xad => self.xor_r8(&Register::L),
             0xae => self.xor_m8(self.get_hl()),
-            0xee => {
-                self.xor_d8();
-            }
+            0xee => self.xor_d8(),
 
             // 9. INC n
-            0x3c => {
-                // INC A
-                self.inc_r8(&Register::A);
-            }
-            0x04 => {
-                // INC B
-                self.inc_r8(&Register::B);
-            }
-            0x0c => {
-                // INC C
-                self.inc_r8(&Register::C);
-            }
-            0x14 => {
-                // INC D
-                self.inc_r8(&Register::D);
-            }
-            0x1c => {
-                // INC E
-                self.inc_r8(&Register::E);
-            }
-            0x24 => {
-                // INC H
-                self.inc_r8(&Register::H);
-            }
-            0x2c => {
-                // INC L
-                self.inc_r8(&Register::L);
-            }
-            0x34 => {
-                // INC (HL)
-                let address = self.get_hl();
-                self.inc_m8(address);
-            }
+            0x3c => self.inc_r8(&Register::A),
+            0x04 => self.inc_r8(&Register::B),
+            0x0c => self.inc_r8(&Register::C),
+            0x14 => self.inc_r8(&Register::D),
+            0x1c => self.inc_r8(&Register::E),
+            0x24 => self.inc_r8(&Register::H),
+            0x2c => self.inc_r8(&Register::L),
+            0x34 => self.inc_m8(self.get_hl()),
 
             // 10. DEC n
-            0x3d => {
-                // DEC A
-                self.dec_r8(&Register::A);
-            }
-            0x05 => {
-                // DEC B
-                self.dec_r8(&Register::B);
-            }
-            0x0d => {
-                // DEC C
-                self.dec_r8(&Register::C);
-            }
-            0x15 => {
-                // DEC D
-                self.dec_r8(&Register::D);
-            }
-            0x1d => {
-                // DEC E
-                self.dec_r8(&Register::E);
-            }
-            0x25 => {
-                // DEC H
-                self.dec_r8(&Register::H);
-            }
-            0x2d => {
-                // DEC L
-                self.dec_r8(&Register::L);
-            }
+            0x3d => self.dec_r8(&Register::A),
+            0x05 => self.dec_r8(&Register::B),
+            0x0d => self.dec_r8(&Register::C),
+            0x15 => self.dec_r8(&Register::D),
+            0x1d => self.dec_r8(&Register::E),
+            0x25 => self.dec_r8(&Register::H),
+            0x2d => self.dec_r8(&Register::L),
             0x35 => self.dec_m8(self.get_hl()),
 
             // 3.3.4. 16-Bit Arithmetic
@@ -666,18 +603,10 @@ impl CPU {
             0xe8 => self.add_r16_d8(&Register16::SP),
 
             // 3. INC nn
-            0x03 => {
-                self.inc_r16(&Register16::BC);
-            }
-            0x13 => {
-                self.inc_r16(&Register16::DE);
-            }
-            0x23 => {
-                self.inc_r16(&Register16::HL);
-            }
-            0x33 => {
-                self.inc_r16(&Register16::SP);
-            }
+            0x03 => self.inc_r16(&Register16::BC),
+            0x13 => self.inc_r16(&Register16::DE),
+            0x23 => self.inc_r16(&Register16::HL),
+            0x33 => self.inc_r16(&Register16::SP),
 
             // 4. DEC nn
             0x0b => self.dec_r16(&Register16::BC),
@@ -703,10 +632,6 @@ impl CPU {
                 self.b = ((d16 & 0xFF00) >> 8) as u8;
                 self.c = (d16 & 0x00FF) as u8;
                 self.pc += 3;
-
-                if d16 == 0x1200 {
-                    println!("pc: {:#X}", self.pc);
-                }
 
                 self.t += 12;
                 self.m += 3;
@@ -783,18 +708,10 @@ impl CPU {
             }
 
             // 6. PUSH nn
-            0xf5 => {
-                self.push(&Register::A, &Register::F);
-            }
-            0xc5 => {
-                self.push(&Register::B, &Register::C);
-            }
-            0xd5 => {
-                self.push(&Register::D, &Register::E);
-            }
-            0xe5 => {
-                self.push(&Register::H, &Register::L);
-            }
+            0xf5 => self.push(&Register::A, &Register::F),
+            0xc5 => self.push(&Register::B, &Register::C),
+            0xd5 => self.push(&Register::D, &Register::E),
+            0xe5 => self.push(&Register::H, &Register::L),
 
             // 7. POP nn
             0xf1 => self.pop(&Register::A, &Register::F),
@@ -846,7 +763,6 @@ impl CPU {
                 let previous = self.a;
                 self.a = self.a.rotate_left(1);
 
-                // self.set_z_flag_if(value == 0);
                 self.reset_z_flag();
                 self.reset_n_flag();
                 self.reset_h_flag();
@@ -1100,7 +1016,6 @@ impl CPU {
                     0x74 => self.bit_r8(6, &Register::H),
                     0x75 => self.bit_r8(6, &Register::L),
                     0x76 => self.bit_m8(6, self.get_hl()),
-
                     0x77 => self.bit_r8(6, &Register::A),
 
                     0x78 => self.bit_r8(7, &Register::B),
@@ -1260,10 +1175,6 @@ impl CPU {
                     0xfd => self.set_r8(7, &Register::L),
                     0xfe => self.set_m8(7, self.get_hl()),
                     0xff => self.set_r8(7, &Register::A),
-
-                    _ => {
-                        panic!("unrecognized prefix {:x}", prefix);
-                    }
                 }
 
                 self.pc += 2;
@@ -1373,13 +1284,10 @@ impl CPU {
 
             // 7. HALT
             0x76 => {
-                // self.halt = true;
+                self.halt = true;
+
+                self.pc = self.pc.wrapping_add(1)
                 // halt until interrupt occurs
-                if self.ime {
-                    self.halt = true;
-                } else {
-                    // self.pc = self.pc.wrapping_add(1);
-                }
             }
 
             // 8. STOP
@@ -1409,7 +1317,7 @@ impl CPU {
                 self.m += 1;
             }
 
-            _ => panic!(
+            0xd3 | 0xdb | 0xdd | 0xe3..=0xe4 | 0xeb..=0xed | 0xf4 | 0xfc..=0xfd => panic!(
                 "unrecognized instructions {:#x} on pc {:#x}",
                 instruction, self.pc
             ),
@@ -1428,6 +1336,19 @@ impl CPU {
     }
 
     fn write_byte(&mut self, address: u16, value: u8) {
+        // match address {
+        //     0xc5fb | 0xd600 => {
+        //         println!(
+        //             "[{:#X}] debug write pc: {:#X} write {:#X} HL: {:#X} DE: {:#X}",
+        //             address,
+        //             self.pc,
+        //             value,
+        //             self.get_hl(),
+        //             self.get_de()
+        //         )
+        //     }
+        //     _ => {}
+        // }
         self.mmu.write_byte(address, value);
     }
 
@@ -1440,6 +1361,7 @@ impl CPU {
 
     fn read_d16(&self) -> u16 {
         // The 16-bit immediates are in little endian
+
         // println!(
         //     "{:#x} {:#x}",
         //     self.mmu.read_byte(self.pc + 1),
@@ -1680,6 +1602,8 @@ impl CPU {
         self.reset_h_flag();
         self.reset_c_flag();
 
+        // println!("XOR a {:#X}", value);
+
         self.pc = self.pc.wrapping_add(2);
 
         self.t += 8;
@@ -1749,7 +1673,7 @@ impl CPU {
         self.a = value;
         self.set_z_flag_if(value == 0);
         self.reset_n_flag();
-        self.set_h_flag_if((previous & 0x0f) + (n & 0x0f) + c > 0x0f);
+        self.set_h_flag_if((previous & 0xf) + (n & 0xf) + c > 0xf);
         let carry = (previous as u16) + (n as u16) + (c as u16) > 0xff;
         self.set_c_flag_if(carry);
 
@@ -1807,12 +1731,12 @@ impl CPU {
         let a = self.a;
         let n = self.read_r8(r);
 
-        let value = a.wrapping_sub(n);
+        let (value, carry) = a.overflowing_sub(n);
         self.a = value;
         self.set_z_flag_if(value == 0);
         self.set_n_flag();
         self.set_h_flag_if(a & 0x0f < n & 0x0f);
-        self.set_c_flag_if(a < n);
+        self.set_c_flag_if(carry);
 
         self.pc = self.pc.wrapping_add(1);
 
@@ -1824,12 +1748,12 @@ impl CPU {
         let previous = self.a;
         let n = self.read_byte(address);
 
-        let value = previous.wrapping_sub(n);
+        let (value, carry) = previous.overflowing_sub(n);
         self.a = value;
         self.set_z_flag_if(value == 0);
         self.set_n_flag();
         self.set_h_flag_if(previous & 0x0f < n & 0x0f);
-        self.set_c_flag_if(previous < n);
+        self.set_c_flag_if(carry);
 
         self.pc = self.pc.wrapping_add(1);
 
@@ -1841,12 +1765,12 @@ impl CPU {
         let previous = self.a;
         let n = self.read_byte(self.pc + 1);
 
-        let value = previous.wrapping_sub(n);
+        let (value, carry) = previous.overflowing_sub(n);
         self.a = value;
         self.set_z_flag_if(value == 0);
         self.set_n_flag();
         self.set_h_flag_if(previous & 0x0f < n & 0x0f);
-        self.set_c_flag_if(previous < n);
+        self.set_c_flag_if(carry);
 
         self.pc = self.pc.wrapping_add(2);
 
@@ -2326,11 +2250,7 @@ impl CPU {
         self.write_r8(register, new_value);
 
         //update the flags
-        if new_value == 0 {
-            self.set_z_flag();
-        } else {
-            self.reset_z_flag();
-        }
+        self.set_z_flag_if(new_value == 0);
         self.reset_n_flag();
         // Set if carry from bit 3
         self.set_h_flag_if(previous & 0x0f == 0x0f);
@@ -2376,13 +2296,14 @@ impl CPU {
         // maybe wrong
         let value = self.read_r16(r);
         let n = self.read_byte(self.pc + 1) as i8;
-        self.write_r16(r, value.wrapping_add(n as u16));
+        let offset = n as u16;
+        self.write_r16(r, value.wrapping_add(offset));
 
         self.reset_z_flag();
         self.reset_n_flag();
-        let half_carry = (value & 0x0f) + (n as u16 & 0x0f) > 0x0f;
+        let half_carry = (value & 0x0f) + (offset & 0x0f) > 0x0f;
         self.set_h_flag_if(half_carry);
-        let carry = (value & 0xff) + (n as u16 & 0xff) > 0xff;
+        let carry = (value & 0xff) + (offset & 0xff) > 0xff;
         self.set_c_flag_if(carry);
 
         self.pc = self.pc.wrapping_add(2);

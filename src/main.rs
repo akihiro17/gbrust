@@ -1,3 +1,4 @@
+mod catridge;
 mod cpu;
 mod mmu;
 mod ppu;
