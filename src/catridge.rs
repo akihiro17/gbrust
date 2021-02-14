@@ -20,7 +20,7 @@ impl Catridge {
 
         let cartridge_type = rom[0x147];
         if cartridge_type != 0x01 {
-            panic!("not supported catridge type {:#X}", cartridge_type);
+            //  panic!("not supported catridge type {:#X}", cartridge_type);
         }
 
         // let number_of_rom_banks =

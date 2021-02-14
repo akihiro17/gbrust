@@ -24,7 +24,7 @@ fn main() {
     // Limit to max ~60 fps update rate
     // window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
-    // x let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/Tetris.gb");
+    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/Tetris.gb");
     let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/cpu_instrs.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/02.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/01.gb");
