@@ -2,80 +2,10 @@ use crate::mmu::MMU;
 use std::fmt;
 
 mod clock;
-mod instructions;
-
-#[derive(Debug)]
-enum Register {
-    A,
-    B,
-    C,
-    D,
-    E,
-    F,
-    H,
-    L,
-}
-
-#[derive(Debug)]
-enum Register16 {
-    AF,
-    BC,
-    DE,
-    HL,
-    SP,
-}
-
-pub struct Reg {
-    // The value of the register
-    value: u16,
-
-    mask: u16,
-}
-
-impl Reg {
-    pub fn new(value: u16, mask: u16) -> Self {
-        return Reg {
-            value: value,
-            mask: mask,
-        };
-    }
-
-    pub fn high(&self) -> u8 {
-        return (self.value >> 8) as u8;
-    }
-
-    pub fn low(&self) -> u8 {
-        return (self.value & 0x00ff) as u8;
-    }
-
-    pub fn value(&self) -> u16 {
-        return self.value;
-    }
-
-    pub fn set_high(&mut self, value: u8) {
-        self.value = (self.value & 0x00ff) | ((value as u16) << 8);
-
-        if self.mask != 0 {
-            self.value &= self.mask;
-        }
-    }
-
-    pub fn set_low(&mut self, value: u8) {
-        self.value = (self.value & 0xff00) | (value as u16);
-
-        if self.mask != 0 {
-            self.value &= self.mask;
-        }
-    }
-
-    pub fn set(&mut self, value: u16) {
-        self.value = value;
-
-        if self.mask != 0 {
-            self.value &= self.mask;
-        }
-    }
-}
+mod instruction;
+mod opcode;
+mod operation;
+mod register;
 
 pub struct CPU {
     pub mmu: MMU,
@@ -88,10 +18,10 @@ pub struct CPU {
     debug: bool,
     halt: bool,
 
-    af: Reg,
-    bc: Reg,
-    de: Reg,
-    hl: Reg,
+    af: register::Register,
+    bc: register::Register,
+    de: register::Register,
+    hl: register::Register,
 }
 
 impl fmt::Debug for CPU {
@@ -128,10 +58,10 @@ impl CPU {
             ime: false,
             debug: false,
             halt: false,
-            af: Reg::new(0, 0xfff0),
-            bc: Reg::new(0, 0),
-            de: Reg::new(0, 0),
-            hl: Reg::new(0, 0),
+            af: register::Register::new(0, 0xfff0),
+            bc: register::Register::new(0, 0),
+            de: register::Register::new(0, 0),
+            hl: register::Register::new(0, 0),
         };
     }
 
@@ -216,13 +146,13 @@ impl CPU {
             // )
         }
 
-        let opecode = self.pop_pc();
+        let opcode = opcode::Opcode::new(self.pop_pc());
         if self.mmu.boot_rom_enabled {
             // println!("pc {:#X} instructions {:#X}", self.pc - 1, instruction);
         }
 
-        instructions::execute(opecode, self);
-        self.t = self.t.wrapping_add(clock::clock(opecode) as usize);
+        instruction::execute(&opcode, self);
+        self.t = self.t.wrapping_add(opcode.clock() as usize);
     }
 
     fn read_byte(&self, address: u16) -> u8 {
@@ -247,64 +177,6 @@ impl CPU {
         self.mmu.write_byte(next, (value >> 8) as u8);
     }
 
-    fn read_r8(&self, register: &Register) -> u8 {
-        match register {
-            Register::A => {
-                return self.af.high();
-            }
-            Register::B => {
-                return self.bc.high();
-            }
-            Register::C => {
-                return self.bc.low();
-            }
-            Register::D => {
-                return self.de.high();
-            }
-            Register::E => {
-                return self.de.low();
-            }
-            Register::F => {
-                return self.af.low();
-            }
-            Register::H => {
-                return self.hl.high();
-            }
-            Register::L => {
-                return self.hl.low();
-            }
-        }
-    }
-
-    fn write_r8(&mut self, register: &Register, value: u8) {
-        match register {
-            Register::A => {
-                self.af.set_high(value);
-            }
-            Register::B => {
-                self.bc.set_high(value);
-            }
-            Register::C => {
-                self.bc.set_low(value);
-            }
-            Register::D => {
-                self.de.set_high(value);
-            }
-            Register::E => {
-                self.de.set_low(value);
-            }
-            Register::F => {
-                self.af.set_low(value);
-            }
-            Register::H => {
-                self.hl.set_high(value);
-            }
-            Register::L => {
-                self.hl.set_low(value);
-            }
-        }
-    }
-
     fn pop_pc(&mut self) -> u8 {
         let v = self.read_byte(self.pc);
         self.pc = self.pc.wrapping_add(1);
@@ -315,41 +187,6 @@ impl CPU {
         let v = self.read_byte16(self.pc);
         self.pc = self.pc.wrapping_add(2);
         return v;
-    }
-
-    fn ld_from_r8_to_r8(&mut self, r1: &Register, r2: &Register) {
-        let value = self.read_r8(r2);
-        self.write_r8(r1, value);
-    }
-
-    fn ld_from_r8_to_m8(&mut self, address: u16, r: &Register) {
-        let value = self.read_r8(r);
-        self.write_byte(address, value);
-
-        // println!("lD address({:x}) = {}", address, value);
-    }
-
-    fn ld_from_d16_to_m8(&mut self, address: u16) {
-        let value = self.pop_pc();
-        self.write_byte(address, value);
-
-        // println!("lD address({:x}) = {}", address, value);
-    }
-
-    fn ld_from_r8_to_d16(&mut self, address: u16, r: &Register) {
-        let value = self.read_r8(r);
-        self.write_byte(address, value);
-    }
-
-    fn ld_from_memory_to_r8(&mut self, r1: &Register, address: u16) {
-        let value = self.read_byte(address);
-        self.write_r8(r1, value);
-    }
-
-    fn ld_from_d16_to_r8(&mut self, r1: &Register) {
-        let d16 = self.pop_pc16();
-        let value = self.read_byte(d16);
-        self.write_r8(r1, value);
     }
 
     fn get_flag(&self, bit_mask: u8) -> bool {
@@ -392,38 +229,6 @@ impl CPU {
     }
     fn reset_c_flag(&mut self) {
         self.af.set_low(self.af.low() & 0b1110_1111);
-    }
-
-    fn get_af(&self) -> u16 {
-        return self.af.value();
-    }
-
-    fn set_af(&mut self, value: u16) {
-        self.af.set(value);
-    }
-
-    fn get_bc(&self) -> u16 {
-        return self.bc.value();
-    }
-
-    fn set_bc(&mut self, value: u16) {
-        self.bc.set(value);
-    }
-
-    fn get_de(&self) -> u16 {
-        return self.de.value();
-    }
-
-    fn set_de(&mut self, value: u16) {
-        self.de.set(value);
-    }
-
-    fn get_hl(&self) -> u16 {
-        return self.hl.value();
-    }
-
-    fn set_hl(&mut self, value: u16) {
-        self.hl.set(value);
     }
 
     fn set_z_flag_if(&mut self, condition: bool) {
