@@ -16,10 +16,12 @@ pub struct MMU {
     pub boot_rom_enabled: bool,
     pub interrupt_flag: u8,
     pub interrupt_enable: u8,
+
+    pub serial_port: String,
 }
 
 impl MMU {
-    pub fn new(boot_rom_name: &str, rom_name: &str) -> MMU {
+    pub fn new(boot_rom_name: &str, rom_name: &str) -> Self {
         let mut file = File::open(rom_name).unwrap();
         let mut rom = Vec::<u8>::new();
 
@@ -27,7 +29,6 @@ impl MMU {
 
         let mut boot_rom_file = File::open(boot_rom_name).unwrap();
         let mut boot_rom = Vec::<u8>::new();
-
         boot_rom_file.read_to_end(&mut boot_rom).unwrap();
 
         return MMU {
@@ -40,6 +41,7 @@ impl MMU {
             boot_rom_enabled: true,
             interrupt_flag: 0,
             interrupt_enable: 0,
+            serial_port: "".to_string(),
         };
     }
 
@@ -62,9 +64,9 @@ impl MMU {
 
     pub fn write_byte(&mut self, address: u16, value: u8) {
         match address {
-            // boot rom
+            // rom
             0x0000..=0x00ff => {
-                self.boot_rom[address as usize] = value;
+                self.catridge.write(address, value);
             }
 
             // rom
@@ -90,7 +92,8 @@ impl MMU {
 
             // for console
             0xff01 => {
-                print!("{}", value as char);
+                self.serial_port.push(value as char);
+                // print!("{}", value as char);
             }
 
             // I/O Registers

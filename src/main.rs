@@ -26,6 +26,7 @@ fn main() {
 
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/Tetris.gb");
     let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/cpu_instrs.gb");
+    // let mut cpu = cpu::CPU::new("", "roms/cpu_instrs.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/02.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/01.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/11.gb");

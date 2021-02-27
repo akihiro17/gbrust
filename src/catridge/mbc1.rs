@@ -1,111 +1,74 @@
-use crate::catridge::banking_controller::BankingController;
+use crate::catridge;
 
 // ref. https://gbdev.gg8.se/wiki/articles/Memory_Bank_Controllers
 
-impl BankingController for MBC1 {
-    fn read(&self, address: u16) -> u8 {
-        match address {
-            0x0000..=0x3fff => {
-                return self.rom[address as usize];
-            }
-            // ROM Bank 01-7F (Read Only)
-            0x4000..=0x7fff => {
-                // the size of a bank is 16KB
-                let rom_offset = (16 * 1024) * self.rom_bank as u16;
-                return self.rom[(rom_offset as usize) + ((address - 0x4000) as usize)];
-            }
-            // RAM Bank 00-03, if any
-            0xa000..=0xbfff => {
-                if !self.ram_enabled {
-                    return 0xff;
-                }
-
-                let ram_offset = (8 * 1024) * self.ram_bank as u16;
-                return self.ram[(ram_offset as usize) + (address - 0xa000) as usize];
-            }
-            _ => panic!("invalid catridge read access {:#X}", address),
+pub fn read(catridge: &catridge::Catridge, address: u16) -> u8 {
+    match address {
+        0x0000..=0x3fff => {
+            return catridge.rom[address as usize];
         }
-    }
-
-    fn write(&mut self, address: u16, value: u8) {
-        match address {
-            // RAM Enable (Write Only)
-            0x0000..=0x1fff => {
-                // any value with 0Ah in the lower 4 bits enables RAM, and any other value disables RAM
-                self.ram_enabled = (value & 0x0f) == 0x0a;
-            }
-            // ROM Bank Number (Write Only)
-            0x2000..=0x3fff => {
-                // Writing to this address space selects the lower 5 bits of the ROM Bank Number (in range 01-1Fh).
-                self.rom_bank = (self.rom_bank & 0xe0) | (value & 0x1f);
-                self.update_rom_bank();
-            }
-            // RAM Bank Number - or - Upper Bits of ROM Bank Number (Write Only)
-            0x4000..=0x5fff => {
-                // This 2bit register can be used to select a RAM Bank in range from 00-03h,
-                // or to specify the upper two bits (Bit 5-6) of the ROM Bank number
-                if self.rom_banking {
-                    self.rom_bank = (self.rom_bank & 0x1f) | (value & 0xe0);
-                    self.update_rom_bank();
-                } else {
-                    self.ram_bank = value & 0x03;
-                }
-            }
-            // ROM/RAM Mode Select (Write Only)
-            0x6000..=0x7fff => {
-                // 0x0: ROM Banking mode
-                // 0x1: RAM Banking mode
-                self.rom_banking = (value & 0x01) == 0;
-                if self.rom_banking {
-                    self.ram_bank = 0;
-                }
-            }
-            // RAM Bank 00-03, if any
-            0xa000..=0xbfff => {
-                if !self.ram_enabled {
-                    return;
-                }
-
-                let ram_offset = (8 * 1024) * self.ram_bank as u16;
-                self.ram[(ram_offset as usize) + (address - 0xa000) as usize] = value;
-            }
-
-            _ => panic!("invalid catridge write access {:#X}", address),
+        // ROM Bank 01-7F (Read Only)
+        0x4000..=0x7fff => {
+            // the size of a bank is 16KB
+            let rom_offset = (16 * 1024) * catridge.rom_bank as u16;
+            return catridge.rom[(rom_offset as usize) + ((address - 0x4000) as usize)];
         }
+        // RAM Bank 00-03, if any
+        0xa000..=0xbfff => {
+            if !catridge.ram_enabled {
+                return 0xff;
+            }
+
+            let ram_offset = (8 * 1024) * catridge.ram_bank as u16;
+            return catridge.ram[(ram_offset as usize) + (address - 0xa000) as usize];
+        }
+        _ => panic!("invalid catridge read access {:#X}", address),
     }
 }
 
-pub struct MBC1 {
-    rom: Vec<u8>,
-    rom_bank: u8,
-
-    ram: Vec<u8>,
-    ram_enabled: bool,
-    ram_bank: u8,
-
-    rom_banking: bool,
-}
-
-impl MBC1 {
-    pub fn new(rom: Vec<u8>, ram_size: u16) -> Self {
-        MBC1 {
-            rom: rom,
-            rom_bank: 1,
-            ram: vec![0; ram_size as usize],
-            ram_enabled: false,
-            ram_bank: 0,
-            rom_banking: false,
+pub fn write(catridge: &mut catridge::Catridge, address: u16, value: u8) {
+    match address {
+        // RAM Enable (Write Only)
+        0x0000..=0x1fff => {
+            // any value with 0Ah in the lower 4 bits enables RAM, and any other value disables RAM
+            catridge.ram_enabled = (value & 0x0f) == 0x0a;
         }
-    }
-
-    fn update_rom_bank(&mut self) {
-        // When 00h is written, the MBC translates that to bank 01h also
-        // the same happens for Bank 20h, 40h, and 60h
-        match self.rom_bank {
-            0x00 | 0x20 | 0x40 | 0x60 => {
-                self.rom_bank += 1;
+        // ROM Bank Number (Write Only)
+        0x2000..=0x3fff => {
+            // Writing to this address space selects the lower 5 bits of the ROM Bank Number (in range 01-1Fh).
+            catridge.rom_bank = (catridge.rom_bank & 0xe0) | (value & 0x1f);
+            catridge.update_rom_bank();
+        }
+        // RAM Bank Number - or - Upper Bits of ROM Bank Number (Write Only)
+        0x4000..=0x5fff => {
+            // This 2bit register can be used to select a RAM Bank in range from 00-03h,
+            // or to specify the upper two bits (Bit 5-6) of the ROM Bank number
+            if catridge.rom_banking {
+                catridge.rom_bank = (catridge.rom_bank & 0x1f) | (value & 0xe0);
+                catridge.update_rom_bank();
+            } else {
+                catridge.ram_bank = value & 0x03;
             }
-            _ => {}
         }
+        // ROM/RAM Mode Select (Write Only)
+        0x6000..=0x7fff => {
+            // 0x0: ROM Banking mode
+            // 0x1: RAM Banking mode
+            catridge.rom_banking = (value & 0x01) == 0;
+            if catridge.rom_banking {
+                catridge.ram_bank = 0;
+            }
+        }
+        // RAM Bank 00-03, if any
+        0xa000..=0xbfff => {
+            if !catridge.ram_enabled {
+                return;
+            }
+
+            let ram_offset = (8 * 1024) * catridge.ram_bank as u16;
+            catridge.ram[(ram_offset as usize) + (address - 0xa000) as usize] = value;
+        }
+
+        _ => panic!("invalid catridge write access {:#X}", address),
     }
 }

@@ -1,11 +1,24 @@
 use std::fs::File;
 use std::io::Read;
 
-mod banking_controller;
 mod mbc1;
+mod no_mbc;
+
+enum CatridgeType {
+    NOMBC,
+    MBC1,
+}
 
 pub struct Catridge {
-    banking_controller: Box<dyn banking_controller::BankingController>,
+    cartridge_type: CatridgeType,
+    rom: Vec<u8>,
+    rom_bank: u8,
+
+    ram: Vec<u8>,
+    ram_enabled: bool,
+    ram_bank: u8,
+
+    rom_banking: bool,
 }
 
 impl Catridge {
@@ -18,12 +31,11 @@ impl Catridge {
         // カートリッジヘッダ
         // https://w.atwiki.jp/gbspec/pages/30.html
 
-        let cartridge_type = rom[0x147];
-        if cartridge_type != 0x01 {
-            //  panic!("not supported catridge type {:#X}", cartridge_type);
-        }
-
-        // let number_of_rom_banks =
+        let cartridge_type = match rom[0x147] {
+            0x00 => CatridgeType::NOMBC,
+            0x01 => CatridgeType::MBC1,
+            _ => panic!("not supported catridge type {:#X}", rom[0x147]),
+        };
 
         // 0149 - RAM サイズ
         let ram_size = match rom[0x0149] {
@@ -35,15 +47,38 @@ impl Catridge {
         };
 
         Catridge {
-            banking_controller: Box::new(mbc1::MBC1::new(rom, ram_size)),
+            cartridge_type: cartridge_type,
+            rom: rom,
+            rom_bank: 1,
+            ram: vec![0; ram_size as usize],
+            ram_enabled: false,
+            ram_bank: 0,
+            rom_banking: false,
         }
     }
 
     pub fn read(&self, address: u16) -> u8 {
-        return self.banking_controller.read(address);
+        match &self.cartridge_type {
+            CatridgeType::NOMBC => no_mbc::read(self, address),
+            CatridgeType::MBC1 => mbc1::read(self, address),
+        }
     }
 
     pub fn write(&mut self, address: u16, value: u8) {
-        self.banking_controller.write(address, value);
+        match &self.cartridge_type {
+            CatridgeType::NOMBC => no_mbc::write(self, address, value),
+            CatridgeType::MBC1 => mbc1::write(self, address, value),
+        }
+    }
+
+    fn update_rom_bank(&mut self) {
+        // When 00h is written, the MBC translates that to bank 01h also
+        // the same happens for Bank 20h, 40h, and 60h
+        match self.rom_bank {
+            0x00 | 0x20 | 0x40 | 0x60 => {
+                self.rom_bank += 1;
+            }
+            _ => {}
+        }
     }
 }

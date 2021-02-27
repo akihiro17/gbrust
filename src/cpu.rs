@@ -12,7 +12,6 @@ pub struct CPU {
     pc: u16,
     sp: u16,
     t: usize, // T-cycle
-    // m: usize, // M-cycle
     // Interrupt Master Enable Flag
     ime: bool,
     debug: bool,
@@ -49,7 +48,7 @@ impl fmt::Debug for CPU {
 }
 
 impl CPU {
-    pub fn new(boot_rom_name: &str, rom_name: &str) -> CPU {
+    pub fn new(boot_rom_name: &str, rom_name: &str) -> Self {
         return CPU {
             mmu: MMU::new(boot_rom_name, rom_name),
             pc: 0,
@@ -261,5 +260,22 @@ impl CPU {
         } else {
             self.reset_c_flag();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CPU;
+
+    #[test]
+    fn test_cpu_instrs() {
+        let mut cpu = CPU::new("roms/DMG_ROM.bin", "roms/cpu_instrs.gb");
+
+        let steps: u64 = 28000000;
+        for _ in 1..=steps {
+            cpu.step();
+        }
+
+        assert_eq!(cpu.mmu.serial_port, "cpu_instrs\n\n01:ok  02:ok  03:ok  04:ok  05:ok  06:ok  07:ok  08:ok  09:ok  10:ok  11:ok  \n\nPassed all tests\n");
     }
 }
