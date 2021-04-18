@@ -375,6 +375,18 @@ impl PPU {
             0xff4a => return self.wy,
             0xff4b => return self.wx,
 
+            // 0xff41 => {
+            //     println!("stat write {:X}", value);
+            // }
+            // 0xff45 => {
+            //     println!("lyc write {:X}", value);
+            // }
+            // 0xff48 => {
+            //     println!("obp0 write {:X}", value);
+            // }
+            // 0xff49 => {
+            //     println!("obp1 write {:X}", value);
+            // }
             _ => panic!("unexpected address #{:x}", address),
         }
     }
@@ -397,6 +409,19 @@ impl PPU {
             0xff47 => self.bgp = value,
             0xff4a => self.wy = value,
             0xff4b => self.wx = value,
+
+            0xff41 => {
+                println!("stat write {:X}", value);
+            }
+            0xff45 => {
+                println!("lyc write {:X}", value);
+            }
+            0xff48 => {
+                println!("obp0 write {:X}", value);
+            }
+            0xff49 => {
+                println!("obp1 write {:X}", value);
+            }
 
             _ => panic!("unexpected address #{:x}", address),
         }

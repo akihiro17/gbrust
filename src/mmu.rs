@@ -21,7 +21,7 @@ pub struct MMU {
 }
 
 impl MMU {
-    pub fn new(boot_rom_name: &str, rom_name: &str) -> Self {
+    pub fn new_with_boot_rom(boot_rom_name: &str, rom_name: &str) -> Self {
         let mut file = File::open(rom_name).unwrap();
         let mut rom = Vec::<u8>::new();
 
@@ -45,6 +45,26 @@ impl MMU {
         };
     }
 
+    pub fn new(rom_name: &str) -> Self {
+        let mut file = File::open(rom_name).unwrap();
+        let mut rom = Vec::<u8>::new();
+
+        file.read_to_end(&mut rom).unwrap();
+
+        return MMU {
+            boot_rom: vec![],
+            catridge: Catridge::new(rom_name),
+            ram: [0; 65536],
+            hram: [0; 0x7f],
+            ppu: PPU::new(),
+            timer: Timer::new(),
+            boot_rom_enabled: false,
+            interrupt_flag: 0,
+            interrupt_enable: 0,
+            serial_port: "".to_string(),
+        };
+    }
+
     pub fn step(&mut self, clocks: usize) {
         self.ppu.step(clocks);
         self.timer.step(clocks);
@@ -55,7 +75,7 @@ impl MMU {
             self.ppu.vblank = false;
         }
 
-        // Timer interrupt Request
+        // Timer interrup Request
         if self.timer.irq {
             self.interrupt_flag |= 0x04;
             self.timer.irq = false;
@@ -85,6 +105,9 @@ impl MMU {
                 self.catridge.write(address, value);
             }
 
+            // main ram
+            0xc000..=0xdfff => self.ram[(address - 0xC000) as usize] = value,
+
             // OAM
             0xfe00..=0xfe9f => {
                 self.ppu.write(address, value);
@@ -97,9 +120,7 @@ impl MMU {
             }
 
             // I/O Registers
-            0xff40 | 0xff42 | 0xff43 | 0xff44 | 0xff47 | 0xff4a | 0xff4b => {
-                self.ppu.write(address, value);
-            }
+            0xff40..=0xff45 | 0xff47..=0xff4b => self.ppu.write(address, value),
 
             // DMA
             0xff46 => {
@@ -133,9 +154,6 @@ impl MMU {
             0xff80..=0xfffe => self.hram[(address & 0x7f) as usize] = value,
 
             _ => {
-                if address == 0xff46 {
-                    panic!("should implement dma");
-                }
                 self.ram[address as usize] = value;
             }
         }
@@ -168,12 +186,15 @@ impl MMU {
                 return self.catridge.read(address);
             }
 
+            // main ram
+            0xc000..=0xdfff => self.ram[(address - 0xC000) as usize],
+
             // OAM
             0xfe00..=0xfe9f => {
                 return self.ppu.read(address);
             }
 
-            0xff40 | 0xff42 | 0xff43 | 0xff44 | 0xff47 | 0xff4a | 0xff4b | 0xff50 => {
+            0xff40..=0xff45 | 0xff47..=0xff4b => {
                 return self.ppu.read(address);
             }
 
@@ -193,8 +214,8 @@ impl MMU {
             0xff80..=0xfffe => self.hram[(address & 0x7f) as usize],
 
             _ => {
-                return self.ram[address as usize];
-                // 0xff
+                return 0xff;
+                // return self.ram[address as usize];
             }
         }
     }

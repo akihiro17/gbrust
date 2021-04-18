@@ -11,21 +11,24 @@ extern crate minifb;
 use minifb::{Window, WindowOptions};
 
 fn main() {
-    let mut window = Window::new(
-        "Test - ESC to exit",
-        ppu::WIDTH,
-        ppu::HEIGHT,
-        WindowOptions::default(),
-    )
-    .unwrap_or_else(|e| {
-        panic!("{}", e);
-    });
+    let mut window = Window::new("Test - ESC to exit", 320, 288, WindowOptions::default())
+        .unwrap_or_else(|e| {
+            panic!("{}", e);
+        });
 
+    thread::sleep(time::Duration::from_secs(10));
+
+    // let rom_name = "roms/hello-2.gb";
+    let rom_name = "roms/bg_scroll_x_y.gb";
+    let rom_name = "roms/cpu_instrs.gb";
+    let rom_name = "roms/Tetris.gb";
+    // let rom_name = "roms/HungryBirds.gb";
     // Limit to max ~60 fps update rate
     // window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/Tetris.gb");
-    let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/cpu_instrs.gb");
+
+    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/cpu_instrs.gb");
     // let mut cpu = cpu::CPU::new("", "roms/cpu_instrs.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/02.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/01.gb");
@@ -41,7 +44,7 @@ fn main() {
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/sprite.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/window.gb");
     // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/bg_scroll_x_y.gb");
-    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/hello-2.gb");
+    let mut cpu = cpu::CPU::new_with_boot_rom("roms/DMG_ROM.bin", rom_name);
 
     loop {
         let now = time::Instant::now();

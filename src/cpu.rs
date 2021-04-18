@@ -48,10 +48,26 @@ impl fmt::Debug for CPU {
 }
 
 impl CPU {
-    pub fn new(boot_rom_name: &str, rom_name: &str) -> Self {
+    pub fn new_with_boot_rom(boot_rom_name: &str, rom_name: &str) -> Self {
         return CPU {
-            mmu: MMU::new(boot_rom_name, rom_name),
-            pc: 0,
+            mmu: MMU::new_with_boot_rom(boot_rom_name, rom_name),
+            pc: 0x0000,
+            sp: 0,
+            t: 0,
+            ime: false,
+            debug: false,
+            halt: false,
+            af: register::Register::new(0, 0xfff0),
+            bc: register::Register::new(0, 0),
+            de: register::Register::new(0, 0),
+            hl: register::Register::new(0, 0),
+        };
+    }
+
+    pub fn new(rom_name: &str) -> Self {
+        return CPU {
+            mmu: MMU::new(rom_name),
+            pc: 0x0100,
             sp: 0,
             t: 0,
             ime: false,
@@ -118,37 +134,34 @@ impl CPU {
     }
 
     pub fn fetch_and_execute(&mut self) {
-        if self.mmu.boot_rom_enabled {
-            if self.pc == 0x0100 {
-                self.af.set(0);
-                self.bc.set(0);
-                self.de.set(0);
-                self.hl.set(0);
-            }
+        // if self.mmu.boot_rom_enabled {
+        //     if self.pc == 0x0100 {
+        //         self.af.set(0);
+        //         self.bc.set(0);
+        //         self.de.set(0);
+        //         self.hl.set(0);
+        //     }
 
-            // println!(
-            //     "CPU {{ A: {:#X}, F: {:#X} B: {:#X}, C: {:#X}, D: {:#X}, E: {:#X}, H: {:#X}, L: {:#X} }} \nflags: {{ Z: {:?}, N: {:?}, H: {:?}, C: {:?} }}\nsp: {:#X} }}\n{{t: {:#X}}}",
-            //     self.af.high(),
-            //     self.af.low(),
-            //     self.bc.high(),
-            //     self.bc.low(),
-            //     self.de.high(),
-            //     self.de.low(),
-            //     self.hl.high(),
-            //     self.hl.low(),
-            //     self.get_z_flag(),
-            //     self.get_n_flag(),
-            //     self.get_h_flag(),
-            //     self.get_c_flag(),
-            //     self.sp,
-            //     self.t,
-            // )
-        }
+        // println!(
+        //     "CPU {{ A: {:#X}, F: {:#X} B: {:#X}, C: {:#X}, D: {:#X}, E: {:#X}, H: {:#X}, L: {:#X} }} \nflags: {{ Z: {:?}, N: {:?}, H: {:?}, C: {:?} }}\nsp: {:#X} }}\n{{t: {:#X}}}",
+        //     self.af.high(),
+        //     self.af.low(),
+        //     self.bc.high(),
+        //     self.bc.low(),
+        //     self.de.high(),
+        //     self.de.low(),
+        //     self.hl.high(),
+        //     self.hl.low(),
+        //     self.get_z_flag(),
+        //     self.get_n_flag(),
+        //     self.get_h_flag(),
+        //     self.get_c_flag(),
+        //     self.sp,
+        //     self.t,
+        // )
+        // }
 
         let opcode = opcode::Opcode::new(self.pop_pc());
-        if self.mmu.boot_rom_enabled {
-            // println!("pc {:#X} instructions {:#X}", self.pc - 1, instruction);
-        }
 
         instruction::execute(&opcode, self);
         self.t = self.t.wrapping_add(opcode.clock() as usize);
@@ -269,9 +282,9 @@ mod tests {
 
     #[test]
     fn test_cpu_instrs() {
-        let mut cpu = CPU::new("roms/DMG_ROM.bin", "roms/cpu_instrs.gb");
+        let mut cpu = CPU::new("roms/cpu_instrs.gb");
 
-        let steps: u64 = 28000000;
+        let steps: u64 = 25000000;
         for _ in 1..=steps {
             cpu.step();
         }
