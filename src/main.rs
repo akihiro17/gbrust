@@ -4,51 +4,54 @@ mod mmu;
 mod ppu;
 mod timer;
 
+use std::env;
 use std::thread;
 use std::time;
 
 extern crate minifb;
 use minifb::{Window, WindowOptions};
 
+extern crate getopts;
+use getopts::Options;
+
 fn main() {
-    let mut window = Window::new("Test - ESC to exit", 320, 288, WindowOptions::default())
+    let args: Vec<String> = env::args().collect();
+
+    let mut opts = Options::new();
+    opts.optopt("b", "bootrom-file", "set the bootrom file path", "");
+    opts.reqopt("f", "rom file", "set the rom file apth", "");
+    let matches = match opts.parse(&args[1..]) {
+        Ok(m) => m,
+        Err(f) => {
+            panic!(f.to_string())
+        }
+    };
+
+    let rom_file = matches.opt_str("f").unwrap();
+
+    let mut cpu = match matches.opt_present("b") {
+        true => {
+            let bootrom_file = matches.opt_str("b").unwrap();
+            cpu::CPU::new_with_boot_rom(&bootrom_file, &rom_file)
+        }
+        false => cpu::CPU::new(&rom_file),
+    };
+
+    let mut window = Window::new("GameBoy Emulator", 320, 288, WindowOptions::default())
         .unwrap_or_else(|e| {
             panic!("{}", e);
         });
 
-    thread::sleep(time::Duration::from_secs(10));
-
-    // let rom_name = "roms/hello-2.gb";
-    let rom_name = "roms/bg_scroll_x_y.gb";
-    let rom_name = "roms/cpu_instrs.gb";
-    let rom_name = "roms/Tetris.gb";
-    // let rom_name = "roms/HungryBirds.gb";
-    // Limit to max ~60 fps update rate
-    // window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
-
-    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/Tetris.gb");
-
-    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/cpu_instrs.gb");
-    // let mut cpu = cpu::CPU::new("", "roms/cpu_instrs.gb");
-    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/02.gb");
-    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/01.gb");
-    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/11.gb");
-    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/10.gb");
-    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/03.gb");
-    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/09.gb");
-    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/07.gb");
-    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/05.gb");
-    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/04.gb");
-    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/ld.gb");
-    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/08.gb");
-    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/sprite.gb");
-    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/window.gb");
-    // let mut cpu = cpu::CPU::new("roms/DMG_ROM.bin", "roms/bg_scroll_x_y.gb");
-    let mut cpu = cpu::CPU::new_with_boot_rom("roms/DMG_ROM.bin", rom_name);
+    // thread::sleep(time::Duration::from_secs(10));
 
     loop {
         let now = time::Instant::now();
 
+        // 1 frame
+
+        // https://mgba-emu.github.io/gbdoc/
+        // > One frame takes 70224 cycles
+        // Timing is divided into 154 lines, ~~ Each line takes 456 cycles.
         let mut elapsed_tick: u32 = 0;
         while elapsed_tick < 456 * 154 {
             elapsed_tick += cpu.step() as u32;
