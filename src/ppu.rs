@@ -1,6 +1,6 @@
 use std::fmt;
 
-pub struct PPU {
+pub struct Ppu {
     mode: u8,
     // 8KB Video RAM(VRAM)
     vram: Vec<u8>,
@@ -41,7 +41,7 @@ pub const DARK_GREEN: u32 = 0xFF306230;
 pub const LIGHT_GREEN: u32 = 0xFF8BAC0F;
 pub const LIGHTEST_GREEN: u32 = 0xFF9BBC0F;
 
-impl fmt::Debug for PPU {
+impl fmt::Debug for Ppu {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -55,9 +55,9 @@ impl fmt::Debug for PPU {
     }
 }
 
-impl Default for PPU {
+impl Default for Ppu {
     fn default() -> Self {
-        PPU {
+        Ppu {
             mode: 2,
             vram: vec![0; 0x2000],
             oam: vec![0; 0xa0],
@@ -77,7 +77,7 @@ impl Default for PPU {
     }
 }
 
-impl PPU {
+impl Ppu {
     pub fn step(&mut self, clocks: usize) {
         if self.lcdc & 0b1000_0000 == 0 {
             return;

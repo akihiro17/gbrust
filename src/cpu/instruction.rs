@@ -1,8 +1,8 @@
 use crate::cpu::opcode;
 use crate::cpu::operation;
-use crate::cpu::CPU;
+use crate::cpu::Cpu;
 
-pub fn execute(opecode: &opcode::Opcode, cpu: &mut CPU) {
+pub fn execute(opecode: &opcode::Opcode, cpu: &mut Cpu) {
     match opecode.code() {
         // nop
         0x0 => {}

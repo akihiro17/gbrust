@@ -1,4 +1,4 @@
-use crate::mmu::MMU;
+use crate::mmu::Mmu;
 use std::fmt;
 
 mod clock;
@@ -7,8 +7,8 @@ mod opcode;
 mod operation;
 mod register;
 
-pub struct CPU {
-    pub mmu: MMU,
+pub struct Cpu {
+    pub mmu: Mmu,
     pc: u16,
     sp: u16,
     t: usize, // T-cycle
@@ -22,7 +22,7 @@ pub struct CPU {
     hl: register::Register,
 }
 
-impl fmt::Debug for CPU {
+impl fmt::Debug for Cpu {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -46,10 +46,10 @@ impl fmt::Debug for CPU {
     }
 }
 
-impl CPU {
+impl Cpu {
     pub fn new_with_boot_rom(boot_rom_name: &str, rom_name: &str) -> Self {
-        CPU {
-            mmu: MMU::new_with_boot_rom(boot_rom_name, rom_name),
+        Cpu {
+            mmu: Mmu::new_with_boot_rom(boot_rom_name, rom_name),
             pc: 0x0000,
             sp: 0,
             t: 0,
@@ -63,8 +63,8 @@ impl CPU {
     }
 
     pub fn new(rom_name: &str) -> Self {
-        CPU {
-            mmu: MMU::new(rom_name),
+        Cpu {
+            mmu: Mmu::new(rom_name),
             pc: 0x0100,
             sp: 0,
             t: 0,
@@ -277,11 +277,11 @@ impl CPU {
 
 #[cfg(test)]
 mod tests {
-    use super::CPU;
+    use super::Cpu;
 
     #[test]
     fn test_cpu_instrs() {
-        let mut cpu = CPU::new("roms/cpu_instrs.gb");
+        let mut cpu = Cpu::new("roms/cpu_instrs.gb");
 
         let steps: u64 = 25000000;
         for _ in 1..=steps {

@@ -5,8 +5,8 @@ mod mbc1;
 mod no_mbc;
 
 enum CatridgeType {
-    NOMBC,
-    MBC1,
+    NoMbc,
+    Mbc1,
 }
 
 pub struct Catridge {
@@ -32,8 +32,8 @@ impl Catridge {
         // https://w.atwiki.jp/gbspec/pages/30.html
 
         let cartridge_type = match rom[0x147] {
-            0x00 => CatridgeType::NOMBC,
-            0x01 => CatridgeType::MBC1,
+            0x00 => CatridgeType::NoMbc,
+            0x01 => CatridgeType::Mbc1,
             _ => panic!("not supported catridge type {:#X}", rom[0x147]),
         };
 
@@ -59,15 +59,15 @@ impl Catridge {
 
     pub fn read(&self, address: u16) -> u8 {
         match &self.cartridge_type {
-            CatridgeType::NOMBC => no_mbc::read(self, address),
-            CatridgeType::MBC1 => mbc1::read(self, address),
+            CatridgeType::NoMbc => no_mbc::read(self, address),
+            CatridgeType::Mbc1 => mbc1::read(self, address),
         }
     }
 
     pub fn write(&mut self, address: u16, value: u8) {
         match &self.cartridge_type {
-            CatridgeType::NOMBC => no_mbc::write(self, address, value),
-            CatridgeType::MBC1 => mbc1::write(self, address, value),
+            CatridgeType::NoMbc => no_mbc::write(self, address, value),
+            CatridgeType::Mbc1 => mbc1::write(self, address, value),
         }
     }
 

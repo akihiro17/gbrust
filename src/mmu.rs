@@ -2,16 +2,16 @@ use std::fs::File;
 use std::io::Read;
 
 use crate::catridge::Catridge;
-use crate::ppu::PPU;
+use crate::ppu::Ppu;
 use crate::timer::Timer;
 
-pub struct MMU {
+pub struct Mmu {
     boot_rom: Vec<u8>, // 0x0000 to 0x00FF
     catridge: Catridge,
     ram: [u8; 65536], // 0x0000 to 0xffff
     /// High RAM
     hram: [u8; 0x7f],
-    pub ppu: PPU,
+    pub ppu: Ppu,
     pub timer: Timer,
     pub boot_rom_enabled: bool,
     pub interrupt_flag: u8,
@@ -20,7 +20,7 @@ pub struct MMU {
     pub serial_port: String,
 }
 
-impl MMU {
+impl Mmu {
     pub fn new_with_boot_rom(boot_rom_name: &str, rom_name: &str) -> Self {
         let mut file = File::open(rom_name).unwrap();
         let mut rom = Vec::<u8>::new();
@@ -31,12 +31,12 @@ impl MMU {
         let mut boot_rom = Vec::<u8>::new();
         boot_rom_file.read_to_end(&mut boot_rom).unwrap();
 
-        MMU {
+        Mmu {
             boot_rom,
             catridge: Catridge::new(rom_name),
             ram: [0; 65536],
             hram: [0; 0x7f],
-            ppu: PPU::default(),
+            ppu: Ppu::default(),
             timer: Timer::default(),
             boot_rom_enabled: true,
             interrupt_flag: 0,
@@ -51,12 +51,12 @@ impl MMU {
 
         file.read_to_end(&mut rom).unwrap();
 
-        MMU {
+        Mmu {
             boot_rom: vec![],
             catridge: Catridge::new(rom_name),
             ram: [0; 65536],
             hram: [0; 0x7f],
-            ppu: PPU::default(),
+            ppu: Ppu::default(),
             timer: Timer::default(),
             boot_rom_enabled: false,
             interrupt_flag: 0,

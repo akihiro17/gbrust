@@ -1,8 +1,8 @@
-use crate::cpu::CPU;
+use crate::cpu::Cpu;
 
 // do operations
 // update flags
-pub fn inc(cpu: &mut CPU, original: u8) -> u8 {
+pub fn inc(cpu: &mut Cpu, original: u8) -> u8 {
     let new_value = original.wrapping_add(1);
 
     //update the flags
@@ -14,7 +14,7 @@ pub fn inc(cpu: &mut CPU, original: u8) -> u8 {
     new_value
 }
 
-pub fn dec(cpu: &mut CPU, original: u8) -> u8 {
+pub fn dec(cpu: &mut Cpu, original: u8) -> u8 {
     let new_value = original.wrapping_sub(1);
 
     //update the flags
@@ -26,7 +26,7 @@ pub fn dec(cpu: &mut CPU, original: u8) -> u8 {
     new_value
 }
 
-pub fn add8(cpu: &mut CPU, value: u8) {
+pub fn add8(cpu: &mut Cpu, value: u8) {
     let original = cpu.af.high();
 
     let (new_value, carry) = original.overflowing_add(value);
@@ -38,7 +38,7 @@ pub fn add8(cpu: &mut CPU, value: u8) {
     cpu.set_c_flag_if(carry);
 }
 
-pub fn adc(cpu: &mut CPU, op2: u8) {
+pub fn adc(cpu: &mut Cpu, op2: u8) {
     let op1 = cpu.af.high();
 
     let c = match cpu.get_c_flag() {
@@ -56,7 +56,7 @@ pub fn adc(cpu: &mut CPU, op2: u8) {
     cpu.set_c_flag_if(carry);
 }
 
-pub fn sub(cpu: &mut CPU, op2: u8) {
+pub fn sub(cpu: &mut Cpu, op2: u8) {
     let op1 = cpu.af.high();
 
     let (value, carry) = op1.overflowing_sub(op2);
@@ -68,7 +68,7 @@ pub fn sub(cpu: &mut CPU, op2: u8) {
     cpu.set_c_flag_if(carry);
 }
 
-pub fn sbc(cpu: &mut CPU, op2: u8) {
+pub fn sbc(cpu: &mut Cpu, op2: u8) {
     let op1 = cpu.af.high();
     let c = if cpu.get_c_flag() { 1 } else { 0 };
 
@@ -82,7 +82,7 @@ pub fn sbc(cpu: &mut CPU, op2: u8) {
     cpu.set_c_flag_if((op1 as u16) < (op2 as u16) + (c as u16));
 }
 
-pub fn cp(cpu: &mut CPU, op1: u8) {
+pub fn cp(cpu: &mut Cpu, op1: u8) {
     let a = cpu.af.high();
 
     cpu.set_z_flag_if(a == op1);
@@ -91,7 +91,7 @@ pub fn cp(cpu: &mut CPU, op1: u8) {
     cpu.set_c_flag_if(a < op1);
 }
 
-pub fn or(cpu: &mut CPU, op1: u8) {
+pub fn or(cpu: &mut Cpu, op1: u8) {
     cpu.af.set_high(cpu.af.high() | op1);
 
     cpu.set_z_flag_if(cpu.af.high() == 0);
@@ -100,7 +100,7 @@ pub fn or(cpu: &mut CPU, op1: u8) {
     cpu.reset_c_flag();
 }
 
-pub fn and(cpu: &mut CPU, op1: u8) {
+pub fn and(cpu: &mut Cpu, op1: u8) {
     cpu.af.set_high(cpu.af.high() & op1);
 
     cpu.set_z_flag_if(cpu.af.high() == 0);
@@ -109,7 +109,7 @@ pub fn and(cpu: &mut CPU, op1: u8) {
     cpu.reset_c_flag();
 }
 
-pub fn xor(cpu: &mut CPU, op1: u8) {
+pub fn xor(cpu: &mut Cpu, op1: u8) {
     cpu.af.set_high(cpu.af.high() ^ op1);
 
     cpu.set_z_flag_if(cpu.af.high() == 0);
@@ -118,7 +118,7 @@ pub fn xor(cpu: &mut CPU, op1: u8) {
     cpu.reset_c_flag();
 }
 
-pub fn add16(cpu: &mut CPU, op1: u16, op2: u16) -> u16 {
+pub fn add16(cpu: &mut Cpu, op1: u16, op2: u16) -> u16 {
     let new_value = op1.wrapping_add(op2);
 
     cpu.reset_n_flag();
@@ -130,14 +130,14 @@ pub fn add16(cpu: &mut CPU, op1: u16, op2: u16) -> u16 {
     new_value
 }
 
-pub fn jp(cpu: &mut CPU, condition: bool) {
+pub fn jp(cpu: &mut Cpu, condition: bool) {
     let address = cpu.pop_pc16();
     if condition {
         cpu.pc = address;
     }
 }
 
-pub fn jr(cpu: &mut CPU, condition: bool) {
+pub fn jr(cpu: &mut Cpu, condition: bool) {
     // n = one byte ##signed## immediate value
 
     // opcode = read(PC++)
@@ -153,7 +153,7 @@ pub fn jr(cpu: &mut CPU, condition: bool) {
     // println!("JR to #{:X} offset: #{:?}", self.pc, n);
 }
 
-pub fn rlc(cpu: &mut CPU, op1: u8) -> u8 {
+pub fn rlc(cpu: &mut Cpu, op1: u8) -> u8 {
     // Rotate n left. Old bit 7 to Carry flag.
     let new_value = op1.rotate_left(1);
 
@@ -165,7 +165,7 @@ pub fn rlc(cpu: &mut CPU, op1: u8) -> u8 {
     new_value
 }
 
-pub fn rrc(cpu: &mut CPU, op1: u8) -> u8 {
+pub fn rrc(cpu: &mut Cpu, op1: u8) -> u8 {
     // Rotate n right. Old bit 0 to Carry flag.
     let new_value = op1.rotate_right(1);
 
@@ -177,7 +177,7 @@ pub fn rrc(cpu: &mut CPU, op1: u8) -> u8 {
     new_value
 }
 
-pub fn rr(cpu: &mut CPU, op1: u8) -> u8 {
+pub fn rr(cpu: &mut Cpu, op1: u8) -> u8 {
     let mut new_value = op1 >> 1;
     if cpu.get_c_flag() {
         new_value |= 0x80;
@@ -193,7 +193,7 @@ pub fn rr(cpu: &mut CPU, op1: u8) -> u8 {
     new_value
 }
 
-pub fn rl(cpu: &mut CPU, op1: u8) -> u8 {
+pub fn rl(cpu: &mut Cpu, op1: u8) -> u8 {
     // rorate left through Carry flag
     // ref. https://ja.wikipedia.org/wiki/%E3%83%93%E3%83%83%E3%83%88%E6%BC%94%E7%AE%97#/media/%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB:Rotate_left_through_carry.svg
     let mut new_value = op1 << 1;
@@ -211,7 +211,7 @@ pub fn rl(cpu: &mut CPU, op1: u8) -> u8 {
     new_value
 }
 
-pub fn sla(cpu: &mut CPU, op1: u8) -> u8 {
+pub fn sla(cpu: &mut Cpu, op1: u8) -> u8 {
     let new_value = op1 << 1;
 
     cpu.set_z_flag_if(new_value == 0);
@@ -222,7 +222,7 @@ pub fn sla(cpu: &mut CPU, op1: u8) -> u8 {
     new_value
 }
 
-pub fn sra(cpu: &mut CPU, op1: u8) -> u8 {
+pub fn sra(cpu: &mut Cpu, op1: u8) -> u8 {
     // Shift n right into Carry. MSB doesn't change.
     let mut new_value = op1 >> 1;
     new_value |= op1 & 0x80;
@@ -235,7 +235,7 @@ pub fn sra(cpu: &mut CPU, op1: u8) -> u8 {
     new_value
 }
 
-pub fn srl(cpu: &mut CPU, op1: u8) -> u8 {
+pub fn srl(cpu: &mut Cpu, op1: u8) -> u8 {
     // Shift n right into Carry. MSB set to 0.
     let new_value = op1 >> 1;
 
@@ -247,7 +247,7 @@ pub fn srl(cpu: &mut CPU, op1: u8) -> u8 {
     new_value
 }
 
-pub fn swap(cpu: &mut CPU, op1: u8) -> u8 {
+pub fn swap(cpu: &mut Cpu, op1: u8) -> u8 {
     let new_value = (op1 & 0x0f) << 4 | (op1 & 0xf0) >> 4;
 
     cpu.set_z_flag_if(new_value == 0);
@@ -258,7 +258,7 @@ pub fn swap(cpu: &mut CPU, op1: u8) -> u8 {
     new_value
 }
 
-pub fn bit(cpu: &mut CPU, n: u8, value: u8) {
+pub fn bit(cpu: &mut Cpu, n: u8, value: u8) {
     let mask = 0x0001 << n;
     let bit_test = value & mask;
 
@@ -267,12 +267,12 @@ pub fn bit(cpu: &mut CPU, n: u8, value: u8) {
     cpu.set_h_flag();
 }
 
-pub fn ret(cpu: &mut CPU) {
+pub fn ret(cpu: &mut Cpu) {
     cpu.pc = cpu.read_byte16(cpu.sp);
     cpu.sp = cpu.sp.wrapping_add(2);
 }
 
-pub fn call(cpu: &mut CPU) {
+pub fn call(cpu: &mut Cpu) {
     // opcode = read(PC++)
     // if opcode == 0xCD:
     // nn = unsigned_16(lsb=read(PC++), msb=read(PC++))
@@ -287,7 +287,7 @@ pub fn call(cpu: &mut CPU) {
     cpu.pc = next;
 }
 
-pub fn call_if(cpu: &mut CPU, condition: bool) {
+pub fn call_if(cpu: &mut Cpu, condition: bool) {
     if condition {
         call(cpu);
     } else {

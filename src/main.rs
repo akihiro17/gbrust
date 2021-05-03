@@ -23,7 +23,7 @@ fn main() {
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => m,
         Err(f) => {
-            panic!(f.to_string())
+            panic!("{}", f.to_string())
         }
     };
 
@@ -32,9 +32,9 @@ fn main() {
     let mut cpu = match matches.opt_present("b") {
         true => {
             let bootrom_file = matches.opt_str("b").unwrap();
-            cpu::CPU::new_with_boot_rom(&bootrom_file, &rom_file)
+            cpu::Cpu::new_with_boot_rom(&bootrom_file, &rom_file)
         }
-        false => cpu::CPU::new(&rom_file),
+        false => cpu::Cpu::new(&rom_file),
     };
 
     let mut window = Window::new("GameBoy Emulator", 320, 288, WindowOptions::default())

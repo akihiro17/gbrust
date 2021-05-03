@@ -9,7 +9,7 @@ fn test_ppu() {
         rom_name: &'a str,
         frames: u64,
         expected: u64,
-    };
+    }
 
     let tests: [Test; 3] = [
         Test {
@@ -31,7 +31,7 @@ fn test_ppu() {
 
     for t in tests.iter() {
         println!("{}", t.rom_name);
-        let mut cpu = cpu::CPU::new(t.rom_name);
+        let mut cpu = cpu::Cpu::new(t.rom_name);
 
         let steps: u64 = 456 * 154 * t.frames;
         for _ in 1..=steps {
