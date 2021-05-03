@@ -14,8 +14,8 @@ pub struct Timer {
     pub irq: bool,
 }
 
-impl Timer {
-    pub fn new() -> Timer {
+impl Default for Timer {
+    fn default() -> Self {
         Timer {
             div: 0,
             tima: 0,
@@ -24,7 +24,9 @@ impl Timer {
             irq: false,
         }
     }
+}
 
+impl Timer {
     pub fn write_byte(&mut self, address: u16, val: u8) {
         match address {
             0xff04 => {

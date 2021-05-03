@@ -55,8 +55,8 @@ impl fmt::Debug for PPU {
     }
 }
 
-impl PPU {
-    pub fn new() -> PPU {
+impl Default for PPU {
+    fn default() -> Self {
         PPU {
             mode: 2,
             vram: vec![0; 0x2000],
@@ -75,7 +75,9 @@ impl PPU {
             debug: false,
         }
     }
+}
 
+impl PPU {
     pub fn step(&mut self, clocks: usize) {
         if self.lcdc & 0b1000_0000 == 0 {
             return;
