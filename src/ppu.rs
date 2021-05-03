@@ -57,7 +57,7 @@ impl fmt::Debug for PPU {
 
 impl PPU {
     pub fn new() -> PPU {
-        return PPU {
+        PPU {
             mode: 2,
             vram: vec![0; 0x2000],
             oam: vec![0; 0xa0],
@@ -73,7 +73,7 @@ impl PPU {
             scanline: [0; WIDTH],
             vblank: false,
             debug: false,
-        };
+        }
     }
 
     pub fn step(&mut self, clocks: usize) {
@@ -83,7 +83,7 @@ impl PPU {
 
         self.clocks += clocks;
 
-        // ref. http://imrannazar.com/GameBoy-Emulation-in-JavaScript:-GPU-Timings
+        // ref. http://imrannazar.com/GameBoy-Emulation-in-JavaScript:h-GPU-Timings
 
         match self.mode {
             // OAM read mode
@@ -286,24 +286,18 @@ impl PPU {
 
     pub fn read(&self, address: u16) -> u8 {
         match address {
-            0x8000..=0x9fff => {
-                // 0x0800 & 0x1fff -> 0x0000 means tile set 1
-                // 0x0900 & 0x1fff -> 0x1000 means tile set 0
-                return self.vram[(address - VRAM_ADDRESS_BASE) as usize];
-            }
+            0x8000..=0x9fff => self.vram[(address - VRAM_ADDRESS_BASE) as usize],
 
             // 0AM
-            0xfe00..=0xfe9f => {
-                return self.oam[(address & 0x00ff) as usize];
-            }
+            0xfe00..=0xfe9f => self.oam[(address & 0x00ff) as usize],
 
-            0xff40 => return self.lcdc,
-            0xff42 => return self.scy,
-            0xff43 => return self.scx,
-            0xff44 => return self.ly,
-            0xff47 => return self.bgp,
-            0xff4a => return self.wy,
-            0xff4b => return self.wx,
+            0xff40 => self.lcdc,
+            0xff42 => self.scy,
+            0xff43 => self.scx,
+            0xff44 => self.ly,
+            0xff47 => self.bgp,
+            0xff4a => self.wy,
+            0xff4b => self.wx,
 
             // TODO:
             0xff41 => {

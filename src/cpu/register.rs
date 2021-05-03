@@ -7,22 +7,19 @@ pub struct Register {
 
 impl Register {
     pub fn new(value: u16, mask: u16) -> Self {
-        return Register {
-            value: value,
-            mask: mask,
-        };
+        Register { value, mask }
     }
 
     pub fn high(&self) -> u8 {
-        return (self.value >> 8) as u8;
+        (self.value >> 8) as u8
     }
 
     pub fn low(&self) -> u8 {
-        return (self.value & 0x00ff) as u8;
+        (self.value & 0x00ff) as u8
     }
 
     pub fn value(&self) -> u16 {
-        return self.value;
+        self.value
     }
 
     pub fn set_high(&mut self, value: u8) {

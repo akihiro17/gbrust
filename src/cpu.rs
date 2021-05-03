@@ -14,7 +14,6 @@ pub struct CPU {
     t: usize, // T-cycle
     // Interrupt Master Enable Flag
     ime: bool,
-    debug: bool,
     halt: bool,
 
     af: register::Register,
@@ -49,35 +48,33 @@ impl fmt::Debug for CPU {
 
 impl CPU {
     pub fn new_with_boot_rom(boot_rom_name: &str, rom_name: &str) -> Self {
-        return CPU {
+        CPU {
             mmu: MMU::new_with_boot_rom(boot_rom_name, rom_name),
             pc: 0x0000,
             sp: 0,
             t: 0,
             ime: false,
-            debug: false,
             halt: false,
             af: register::Register::new(0, 0xfff0),
             bc: register::Register::new(0, 0),
             de: register::Register::new(0, 0),
             hl: register::Register::new(0, 0),
-        };
+        }
     }
 
     pub fn new(rom_name: &str) -> Self {
-        return CPU {
+        CPU {
             mmu: MMU::new(rom_name),
             pc: 0x0100,
             sp: 0,
             t: 0,
             ime: false,
-            debug: false,
             halt: false,
             af: register::Register::new(0, 0xfff0),
             bc: register::Register::new(0, 0),
             de: register::Register::new(0, 0),
             hl: register::Register::new(0, 0),
-        };
+        }
     }
 
     pub fn step(&mut self) -> usize {
@@ -130,7 +127,7 @@ impl CPU {
             }
         }
 
-        return self.t;
+        self.t
     }
 
     pub fn fetch_and_execute(&mut self) {
@@ -168,14 +165,14 @@ impl CPU {
     }
 
     fn read_byte(&self, address: u16) -> u8 {
-        return self.mmu.read_byte(address);
+        self.mmu.read_byte(address)
     }
 
     fn read_byte16(&self, address: u16) -> u16 {
         let low = self.mmu.read_byte(address);
         let high = self.mmu.read_byte(address.wrapping_add(1));
 
-        return ((high as u16) << 8) | low as u16;
+        ((high as u16) << 8) | low as u16
     }
 
     fn write_byte(&mut self, address: u16, value: u8) {
@@ -192,13 +189,15 @@ impl CPU {
     fn pop_pc(&mut self) -> u8 {
         let v = self.read_byte(self.pc);
         self.pc = self.pc.wrapping_add(1);
-        return v;
+
+        v
     }
 
     fn pop_pc16(&mut self) -> u16 {
         let v = self.read_byte16(self.pc);
         self.pc = self.pc.wrapping_add(2);
-        return v;
+
+        v
     }
 
     fn get_flag(&self, bit_mask: u8) -> bool {
@@ -250,7 +249,7 @@ impl CPU {
             self.reset_z_flag();
         }
     }
-
+    #[allow(dead_code)]
     fn set_n_flag_if(&mut self, condition: bool) {
         if condition {
             self.set_n_flag();

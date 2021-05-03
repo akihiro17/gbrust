@@ -47,8 +47,8 @@ impl Catridge {
         };
 
         Catridge {
-            cartridge_type: cartridge_type,
-            rom: rom,
+            cartridge_type,
+            rom,
             rom_bank: 1,
             ram: vec![0; ram_size as usize],
             ram_enabled: false,

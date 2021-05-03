@@ -11,7 +11,7 @@ pub fn inc(cpu: &mut CPU, original: u8) -> u8 {
     // Set if carry from bit 3
     cpu.set_h_flag_if(original & 0x0f == 0x0f);
 
-    return new_value;
+    new_value
 }
 
 pub fn dec(cpu: &mut CPU, original: u8) -> u8 {
@@ -23,7 +23,7 @@ pub fn dec(cpu: &mut CPU, original: u8) -> u8 {
     // Set if carry from bit 4.
     cpu.set_h_flag_if(original & 0x0f == 0);
 
-    return new_value;
+    new_value
 }
 
 pub fn add8(cpu: &mut CPU, value: u8) {
@@ -127,7 +127,7 @@ pub fn add16(cpu: &mut CPU, op1: u16, op2: u16) -> u16 {
     let carry = (op1 as u32) + (op2 as u32) > 0xffff;
     cpu.set_c_flag_if(carry);
 
-    return new_value;
+    new_value
 }
 
 pub fn jp(cpu: &mut CPU, condition: bool) {
@@ -162,7 +162,7 @@ pub fn rlc(cpu: &mut CPU, op1: u8) -> u8 {
     cpu.reset_h_flag();
     cpu.set_c_flag_if((op1 & 0b1000_0000) == 0b1000_0000);
 
-    return new_value;
+    new_value
 }
 
 pub fn rrc(cpu: &mut CPU, op1: u8) -> u8 {
@@ -174,15 +174,15 @@ pub fn rrc(cpu: &mut CPU, op1: u8) -> u8 {
     cpu.reset_h_flag();
     cpu.set_c_flag_if((op1 & 0x01) > 0);
 
-    return new_value;
+    new_value
 }
 
 pub fn rr(cpu: &mut CPU, op1: u8) -> u8 {
     let mut new_value = op1 >> 1;
     if cpu.get_c_flag() {
-        new_value = new_value | 0x80;
+        new_value |= 0x80;
     } else {
-        new_value = new_value | 0x00;
+        new_value |= 0x00;
     }
 
     cpu.set_z_flag_if(new_value == 0);
@@ -190,7 +190,7 @@ pub fn rr(cpu: &mut CPU, op1: u8) -> u8 {
     cpu.reset_h_flag();
     cpu.set_c_flag_if((op1 & 0x01) > 0);
 
-    return new_value;
+    new_value
 }
 
 pub fn rl(cpu: &mut CPU, op1: u8) -> u8 {
@@ -198,9 +198,9 @@ pub fn rl(cpu: &mut CPU, op1: u8) -> u8 {
     // ref. https://ja.wikipedia.org/wiki/%E3%83%93%E3%83%83%E3%83%88%E6%BC%94%E7%AE%97#/media/%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB:Rotate_left_through_carry.svg
     let mut new_value = op1 << 1;
     if cpu.get_c_flag() {
-        new_value = new_value | 0x01;
+        new_value |= 0x01;
     } else {
-        new_value = new_value | 0x00;
+        new_value |= 0x00;
     }
 
     cpu.set_z_flag_if(new_value == 0);
@@ -208,7 +208,7 @@ pub fn rl(cpu: &mut CPU, op1: u8) -> u8 {
     cpu.reset_h_flag();
     cpu.set_c_flag_if((op1 & 0b1000_0000) == 0b1000_0000);
 
-    return new_value;
+    new_value
 }
 
 pub fn sla(cpu: &mut CPU, op1: u8) -> u8 {
@@ -219,20 +219,20 @@ pub fn sla(cpu: &mut CPU, op1: u8) -> u8 {
     cpu.reset_h_flag();
     cpu.set_c_flag_if((op1 & 0b1000_0000) == 0b1000_0000);
 
-    return new_value;
+    new_value
 }
 
 pub fn sra(cpu: &mut CPU, op1: u8) -> u8 {
     // Shift n right into Carry. MSB doesn't change.
     let mut new_value = op1 >> 1;
-    new_value = new_value | (op1 & 0x80);
+    new_value |= op1 & 0x80;
 
     cpu.set_z_flag_if(new_value == 0);
     cpu.reset_n_flag();
     cpu.reset_h_flag();
     cpu.set_c_flag_if((op1 & 0x01) > 0);
 
-    return new_value;
+    new_value
 }
 
 pub fn srl(cpu: &mut CPU, op1: u8) -> u8 {
@@ -244,7 +244,7 @@ pub fn srl(cpu: &mut CPU, op1: u8) -> u8 {
     cpu.reset_h_flag();
     cpu.set_c_flag_if((op1 & 0x01) > 0);
 
-    return new_value;
+    new_value
 }
 
 pub fn swap(cpu: &mut CPU, op1: u8) -> u8 {
@@ -255,7 +255,7 @@ pub fn swap(cpu: &mut CPU, op1: u8) -> u8 {
     cpu.reset_h_flag();
     cpu.reset_c_flag();
 
-    return new_value;
+    new_value
 }
 
 pub fn bit(cpu: &mut CPU, n: u8, value: u8) {

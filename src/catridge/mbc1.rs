@@ -4,14 +4,12 @@ use crate::catridge;
 
 pub fn read(catridge: &catridge::Catridge, address: u16) -> u8 {
     match address {
-        0x0000..=0x3fff => {
-            return catridge.rom[address as usize];
-        }
+        0x0000..=0x3fff => catridge.rom[address as usize],
         // ROM Bank 01-7F (Read Only)
         0x4000..=0x7fff => {
             // the size of a bank is 16KB
             let rom_offset = (16 * 1024) * catridge.rom_bank as u16;
-            return catridge.rom[(rom_offset as usize) + ((address - 0x4000) as usize)];
+            catridge.rom[(rom_offset as usize) + ((address - 0x4000) as usize)]
         }
         // RAM Bank 00-03, if any
         0xa000..=0xbfff => {
@@ -20,7 +18,7 @@ pub fn read(catridge: &catridge::Catridge, address: u16) -> u8 {
             }
 
             let ram_offset = (8 * 1024) * catridge.ram_bank as u16;
-            return catridge.ram[(ram_offset as usize) + (address - 0xa000) as usize];
+            catridge.ram[(ram_offset as usize) + (address - 0xa000) as usize]
         }
         _ => panic!("invalid catridge read access {:#X}", address),
     }

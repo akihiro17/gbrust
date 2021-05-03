@@ -6,7 +6,7 @@ pub struct Opcode {
 
 impl Opcode {
     pub fn new(code: u8) -> Self {
-        Opcode { code: code }
+        Opcode { code }
     }
 
     pub fn code(&self) -> u8 {

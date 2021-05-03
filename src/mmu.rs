@@ -31,8 +31,8 @@ impl MMU {
         let mut boot_rom = Vec::<u8>::new();
         boot_rom_file.read_to_end(&mut boot_rom).unwrap();
 
-        return MMU {
-            boot_rom: boot_rom,
+        MMU {
+            boot_rom,
             catridge: Catridge::new(rom_name),
             ram: [0; 65536],
             hram: [0; 0x7f],
@@ -42,7 +42,7 @@ impl MMU {
             interrupt_flag: 0,
             interrupt_enable: 0,
             serial_port: "".to_string(),
-        };
+        }
     }
 
     pub fn new(rom_name: &str) -> Self {
@@ -51,7 +51,7 @@ impl MMU {
 
         file.read_to_end(&mut rom).unwrap();
 
-        return MMU {
+        MMU {
             boot_rom: vec![],
             catridge: Catridge::new(rom_name),
             ram: [0; 65536],
@@ -62,7 +62,7 @@ impl MMU {
             interrupt_flag: 0,
             interrupt_enable: 0,
             serial_port: "".to_string(),
-        };
+        }
     }
 
     pub fn step(&mut self, clocks: usize) {
@@ -166,57 +166,39 @@ impl MMU {
                     return self.boot_rom[address as usize];
                 }
 
-                return self.catridge.read(address);
+                self.catridge.read(address)
             }
 
             // ROM
-            0x0100..=0x7fff => {
-                // return self.rom[address as usize];
-                return self.catridge.read(address);
-            }
+            0x0100..=0x7fff => self.catridge.read(address),
 
             // PPU
-            0x8000..=0x9fff => {
-                return self.ppu.read(address);
-            }
+            0x8000..=0x9fff => self.ppu.read(address),
 
             // RAM
             // External RAM
-            0xa000..=0xbfff => {
-                return self.catridge.read(address);
-            }
+            0xa000..=0xbfff => self.catridge.read(address),
 
             // main ram
             0xc000..=0xdfff => self.ram[(address - 0xC000) as usize],
 
             // OAM
-            0xfe00..=0xfe9f => {
-                return self.ppu.read(address);
-            }
+            0xfe00..=0xfe9f => self.ppu.read(address),
 
-            0xff40..=0xff45 | 0xff47..=0xff4b => {
-                return self.ppu.read(address);
-            }
+            0xff40..=0xff45 | 0xff47..=0xff4b => self.ppu.read(address),
 
             // Timer
             0xff04..=0xff07 => self.timer.read_byte(address),
 
             // Interrupt Flag
-            0xff0f => {
-                return self.interrupt_flag;
-            }
+            0xff0f => self.interrupt_flag,
             // Interrupt Enable
-            0xffff => {
-                return self.interrupt_enable;
-            }
+            0xffff => self.interrupt_enable,
 
             // HRAM
             0xff80..=0xfffe => self.hram[(address & 0x7f) as usize],
 
-            _ => {
-                return 0xff;
-                // return self.ram[address as usize];
-            }
+            _ => 0xff,
         }
     }
 }

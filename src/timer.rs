@@ -16,13 +16,13 @@ pub struct Timer {
 
 impl Timer {
     pub fn new() -> Timer {
-        return Timer {
+        Timer {
             div: 0,
             tima: 0,
             tma: 0,
             tac: 0,
             irq: false,
-        };
+        }
     }
 
     pub fn write_byte(&mut self, address: u16, val: u8) {

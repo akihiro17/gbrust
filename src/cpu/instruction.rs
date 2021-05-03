@@ -546,9 +546,9 @@ pub fn execute(opecode: &opcode::Opcode, cpu: &mut CPU) {
             let previous = cpu.af.high();
             let mut value = cpu.af.high() << 1;
             if cpu.get_c_flag() {
-                value = value | 0x01
+                value |= 0x01
             } else {
-                value = value | 0x00
+                value |= 0x00
             }
             cpu.af.set_high(value);
 
@@ -577,9 +577,9 @@ pub fn execute(opecode: &opcode::Opcode, cpu: &mut CPU) {
             let previous = cpu.af.high();
             let mut value = cpu.af.high() >> 1;
             if cpu.get_c_flag() {
-                value = value | 0x80
+                value |= 0x80
             } else {
-                value = value | 0x00
+                value |= 0x00
             }
             cpu.af.set_high(value);
 
@@ -1128,7 +1128,8 @@ pub fn execute(opecode: &opcode::Opcode, cpu: &mut CPU) {
             cpu.sp = cpu.sp.wrapping_sub(2);
             cpu.write_byte16(cpu.sp, cpu.pc);
 
-            cpu.pc = 0x0000 + opecode.code() as u16 - 0x00c7;
+            // cpu.pc = 0x0000 + opecode.code() as u16 - 0x00c7;
+            cpu.pc = opecode.code() as u16 - 0x00c7;
         }
 
         // 1. RET
